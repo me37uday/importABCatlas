@@ -115,3 +115,15 @@ All required raw files will be downloaded to the location defined by download_ba
 ⚙️ System requirements and package dependencies are currently being tested. Detailed installation and configuration instructions will be available in the final documentation.
 
 Thank you for your patience and support as the package evolves.
+
+
+### Using docker to run the package
+- Install docker engine / desktop using the instructions from [here](https://docs.docker.com/engine/install/)
+- cd to the cloned repository directory
+- run the commands ```docker build -t {name} . ```
+- Replace `{name}` with a name of your choice for the docker image.
+- run ```docker run -it {name} /bin/bash```
+- Bash terminal will open inside the docker container.
+- Run ```R```
+- Load the package using ```devtools::load_all('.')```
+- then run ```whb <- load_data_WHB()```
