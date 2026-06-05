@@ -65,7 +65,6 @@ Replace "/path/to/importABCatlas/" with the actual path to your cloned repositor
 ### 📥 Step 3: Load Metadata
 
 ```
-mem.maxVsize(Inf)
 WHB_metadata <- load_data_WHB()
 ```
 This returns a list with the following:
