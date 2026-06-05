@@ -50,20 +50,22 @@ git clone https://github.com/me37uday/importABCatlas.git
 ### 🧬 Step 2: Load the Package in R
 
 ```
-# Set the base download path where data will be stored
+# Set the base download path in the github repo where the raw data will be stored
+setwd("/path/to/importABCatlas/")
 download_base <- "abc_download_root"
 
-# Load required library
+# Load required library (if not already installed: install.packages("devtools"))
 library(devtools)
 
 # Load the package from your local clone
-devtools::load_all("/path/to/importABCatlas/")
+devtools::load_all()
 ```
 Replace "/path/to/importABCatlas/" with the actual path to your cloned repository.
 
 ### 📥 Step 3: Load Metadata
 
 ```
+mem.maxVsize(Inf)
 WHB_metadata <- load_data_WHB()
 ```
 This returns a list with the following:
