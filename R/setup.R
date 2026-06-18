@@ -6,7 +6,7 @@ setup_environment <- function() {
   library(reticulate)
   
   # Attempt to find Python 3.10 in the system path
-  python_path <- Sys.which("python3.10")
+  python_path <- Sys.which("python3.12")
   
   # Check if Python 3.10 was found
   if (python_path == "") {
