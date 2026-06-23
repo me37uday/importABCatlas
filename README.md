@@ -2,7 +2,7 @@
 
 ## 🧠 About the Tool
 
-**`importABCatlas`** provides a streamlined interface for accessing and analyzing data from the **Allen Brain Cell (ABC) Atlas** using the **Seurat** ecosystem. Built with accessibility and ease-of-use in mind, this package is intended to empower researchers—particularly those more comfortable in R environments—to explore high-resolution single-cell data from the ABC Atlas without needing Python or high-performance computing (HPC) infrastructure.
+**`importABCatlas`** provides a streamlined interface for accessing and analyzing data from the **Allen Brain Cell (ABC) Atlas** using the **Seurat** ecosystem. Built with accessibility and ease-of-use in mind, this package is intended to empower researchers—particularly those more comfortable in R environments—to explore high-resolution single-cell data from the ABC Atlas without needing Python or high-performance computing infrastructure.
 
 The **Allen Brain Cell Atlas** is an open-access, multimodal platform developed by the **Allen Institute** as part of the Brain Knowledge Platform. Its mission is to provide a unified, high-resolution view of the molecular and spatial diversity of brain cell types across mammalian species. This groundbreaking initiative continues to expand, offering researchers unprecedented capabilities to:
 
