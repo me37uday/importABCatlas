@@ -1,29 +1,39 @@
-#' Setup the Python environment
-#' 
-#' This function sets up the Python environment required to run the data loading functions.
+#' Set up the Python environment for importABCatlas
+#'
+#' Declares the Python packages the loaders depend on via
+#' \code{reticulate::py_require()} and initialises Python so any provisioning
+#' errors surface early. reticulate uses \code{uv} to fetch a suitable prebuilt
+#' Python interpreter (no system Python or compilation required) and resolve the
+#' declared dependencies into an isolated environment.
+#'
+#' Calling this is optional: the dependencies are also declared automatically
+#' when the package is loaded (see \code{.onLoad}), and Python is initialised
+#' lazily on first use. Use it to provision and check the environment up front.
+#'
+#' @return Invisibly, the reticulate Python configuration.
 #' @export
 setup_environment <- function() {
-  library(reticulate)
-  
-  # Attempt to find Python 3.10 in the system path
-  python_path <- Sys.which("python3.10")
-  
-  # Check if Python 3.10 was found
-  if (python_path == "") {
-    stop("Python 3.10 not found in the system PATH. Please ensure Python 3.10 is installed and available in the PATH.")
-  }
-  #use_python(python_path, required = TRUE)
-  virtualenv_dir <- "r-reticulate-env"
-  
-  if (!virtualenv_exists(virtualenv_dir)) {
-    virtualenv_create(virtualenv_dir, python = python_path)
-    virtualenv_install(virtualenv_dir, packages = c("pandas", "pathlib", "numpy", "anndata"))
-    
-    # Install abc_atlas_access from GitHub
-    virtualenv_install(virtualenv_dir, packages = "git+https://github.com/alleninstitute/abc_atlas_access", ignore_installed = TRUE)
-  }
-  
-  use_virtualenv(virtualenv_dir, required = TRUE)
+  requireNamespace("reticulate")
+  reticulate::py_require(.abc_python_packages())
+  cfg <- reticulate::py_config()   # triggers provisioning / initialisation
+  message("Python ready: ", cfg$python)
+  invisible(cfg)
+}
 
-  print("Finished setting up Python environment")
+# Declarative Python dependencies, in PEP 508 form for reticulate/uv.
+#
+# abc_atlas_access is pinned to a specific commit for reproducibility (it has no
+# stable PyPI release and otherwise tracks a moving branch). The scientific
+# stack is left unpinned so uv can resolve versions compatible with whatever
+# prebuilt Python it selects -- keeping setup portable across machines. numpy,
+# scipy and anndata are listed explicitly because fetch_data()'s helper imports
+# them directly (not only transitively through abc_atlas_access).
+.abc_python_packages <- function() {
+  c(
+    "abc_atlas_access @ git+https://github.com/alleninstitute/abc_atlas_access@da54664e8a9c8e2e2ba573d1d8f590b114a149c4",
+    "anndata",
+    "numpy",
+    "pandas",
+    "scipy"
+  )
 }

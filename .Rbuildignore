@@ -1,0 +1,11 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$
+^check_setup\.R$
+^current_state\.md$
+^environment\.yml$
+^README\.Rmd$
+^src$
+^data$
+^\.git$
+^\.github$

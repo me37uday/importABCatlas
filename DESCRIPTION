@@ -1,15 +1,28 @@
-Package: importAllen
-Title: What the Package Does (One Line, Title Case)
+Package: importABCatlas
+Title: Import Allen Brain Cell Atlas Data into R as Seurat Objects
 Version: 0.0.0.9000
-Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Authors@R: c(
+    person("Uday", "Rangaswamy",  role = c("aut", "cre")),
+    person("Federico", "Caretti", role = c("aut")))
+Description: Provides an R-native interface to the Allen Brain Cell (ABC) Atlas.
+    Wraps the 'abc_atlas_access' Python package via 'reticulate' to download and
+    assemble cell metadata for supported datasets (whole human brain, whole mouse
+    brain, aging mouse, and others) and to fetch gene expression for filtered
+    cell populations as sparse 'Seurat' objects, enabling downstream single-cell
+    analysis in R without Python or high-performance computing infrastructure.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
-Suggests: 
+SystemRequirements: Python (>= 3.8), provisioned automatically by reticulate
+    (via uv) on first use; an internet connection is required the first time.
+Imports:
+    dplyr,
+    Matrix,
+    reticulate (>= 1.41),
+    Seurat,
+    stats,
+    tools
+Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0

@@ -64,14 +64,18 @@ Replace "/path/to/importABCatlas/" with the actual path to your cloned repositor
 
 ### 📥 Step 3: Load Metadata
 
+A single `load_data()` function serves every dataset; pick one by name:
+
 ```
-WHB_metadata <- load_data_WHB()
+WHB_metadata <- load_data("WHB")
 ```
 This returns a list with the following:
 
 - WHB_metadata$cell_metadata: metadata for all WHB cells
 - WHB_metadata$gene_data: reference gene annotation
 - WHB_metadata$unique_values: helper list showing column names and unique values (used for filtering)
+
+Supported `dataset` values: `"WHB"`, `"WMB"`, `"AgingMouse"`, `"HMBA"`, `"PMDBS"`.
 
 ### 🧪 Step 4: Define Filtering Criteria
 Create a named vector to specify the cell populations of interest. Example:
@@ -104,12 +108,13 @@ meta   <- obj[[]]
 ```
 
 ### 🧱 Current Dataset Support
-Currently, the package supports the WHB (Whole Human Brain) dataset. Additional datasets are in development:
+Select any of the following via `load_data("<dataset>")`:
 
-- 🧠 Whole Mouse Brain (WMB)
-- ⏳ Aging Mouse Brain (AgingMouse)
-- 🔬 Human-Mammalian Brain Atlas (HMBA)
-- 🧬 Human Postmortem-Derived Brain Sequencing (PMDBS)
+- 🧠 Whole Human Brain — `"WHB"`
+- 🧠 Whole Mouse Brain — `"WMB"`
+- ⏳ Aging Mouse Brain — `"AgingMouse"`
+- 🔬 Human-Mammalian Brain Atlas — `"HMBA"`
+- 🧬 Human Postmortem-Derived Brain Sequencing — `"PMDBS"`
 
 All required raw files will be downloaded to the location defined by download_base.
 

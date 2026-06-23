@@ -2,10 +2,32 @@
 % Please edit documentation in R/setup.R
 \name{setup_environment}
 \alias{setup_environment}
-\title{Setup the Python environment}
+\title{Set up the Python environment for importABCatlas}
 \usage{
-setup_environment()
+setup_environment(
+  envname = "r-importABCatlas",
+  python_version = "3.10.16",
+  python = NULL
+)
+}
+\arguments{
+\item{envname}{Name of the virtualenv to create and use.}
+
+\item{python_version}{Python version to provision via
+\code{reticulate::install_python()} when the environment is first created.
+Ignored if \code{python} is supplied.}
+
+\item{python}{Optional path to an existing Python interpreter to build the
+environment from. If \code{NULL}, \code{python_version} is provisioned.}
+}
+\value{
+Invisibly, the virtualenv name.
 }
 \description{
-This function sets up the Python environment required to run the data loading functions.
+Creates (once) and activates a reticulate virtual environment holding the
+Python packages the loaders depend on. The interpreter is provisioned by
+\code{reticulate::install_python()} so it does not need to be on the system
+\code{PATH}; if that is unavailable, a matching system Python is used as a
+fallback. Package versions are pinned for reproducibility, and
+\code{abc_atlas_access} is pinned to a specific commit.
 }

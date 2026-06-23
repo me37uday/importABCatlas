@@ -5,15 +5,20 @@
 \title{Fetch data from ABC Atlas based on filters and return a Seurat object}
 \usage{
 fetch_data(
-  download_base = "abc_download_root",
+  download_base = NULL,
   metadata,
   filters = list(),
   gene_data,
   genes = NULL,
-  assay_name = "RNA"
+  assay_name = "RNA",
+  offline = FALSE
 )
 }
 \arguments{
+\item{download_base}{Directory where ABC Atlas data is downloaded and cached.
+If \code{NULL} (default), it is resolved by \code{\link[=abc_download_dir]{abc_download_dir()}} (option,
+\code{ABC_ATLAS_CACHE} env var, or a per-user cache directory).}
+
 \item{metadata}{A data.frame containing ABC atlas cell metadata (e.g., from \code{get_cell_metadata()}).}
 
 \item{filters}{A named list of column = value pairs used to filter the metadata.}
@@ -23,6 +28,9 @@ fetch_data(
 \item{genes}{A character vector of gene names to include. If NULL, all genes in gene_data$gene_symbol will be used.}
 
 \item{assay_name}{The name to use for the Seurat assay (default: "RNA").}
+
+\item{offline}{If \code{TRUE}, use only locally cached expression data and never
+contact S3 (see \code{\link[=abc_cache_connect]{abc_cache_connect()}}).}
 }
 \value{
 A Seurat object containing the filtered cells and gene expression data.

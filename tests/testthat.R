@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(importAllen)
+library(importABCatlas)
 
-test_check("importAllen")
+test_check("importABCatlas")
