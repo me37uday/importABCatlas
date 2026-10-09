@@ -1,0 +1,6 @@
+# Compatibility bounds, NOT a tested environment lock.
+# setup_environment installs the official SDK separately from a chosen Git ref.
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+h5py>=3.8

@@ -1,0 +1,11 @@
+RELEASE BLOCKER - COPYRIGHT-HOLDER LICENSE DECISION REQUIRED
+
+The uploaded source did not contain a completed software license or verified
+copyright-holder information. This maintenance bundle does not purport to
+relicense the authors' existing work. Before a public release, the copyright
+holders must select a license, add its full text and update DESCRIPTION.
+MIT is a possible choice, not a license granted by this file.
+
+Allen datasets are separate works. Their dataset-specific terms, including
+CC BY-NC 4.0 where stated, continue to apply. A software license does not
+relicense downloaded data. See docs/SOURCES.md and official dataset pages.
