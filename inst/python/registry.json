@@ -1,0 +1,271 @@
+{
+  "WMB": {
+    "directory": "WMB-10X",
+    "cell_file": "cell_metadata",
+    "gene_directory": "WMB-10X",
+    "gene_file": "gene",
+    "taxonomy": "WMB-taxonomy",
+    "spatial": false,
+    "expression_directories": [
+      "WMB-10Xv2",
+      "WMB-10Xv3",
+      "WMB-10XMulti"
+    ]
+  },
+  "ConsensusMouseAIBS": {
+    "directory": "Consensus-WMB-AIBS-10X",
+    "cell_file": "cell_metadata",
+    "gene_directory": "WMB-10X",
+    "gene_file": "gene",
+    "taxonomy": "Consensus-WMB-integrated-taxonomy",
+    "spatial": false,
+    "expression_directories": [
+      "WMB-10Xv2",
+      "WMB-10Xv3",
+      "WMB-10XMulti"
+    ]
+  },
+  "ConsensusMouseMacosko": {
+    "directory": "Consensus-WMB-Macosko-10X",
+    "cell_file": "cell_metadata",
+    "gene_directory": "Consensus-WMB-Macosko-10X",
+    "gene_file": "gene",
+    "taxonomy": "Consensus-WMB-integrated-taxonomy",
+    "spatial": false,
+    "expression_directories": [
+      "Consensus-WMB-Macosko-10X"
+    ]
+  },
+  "AgingMouse": {
+    "directory": "Zeng-Aging-Mouse-10Xv3",
+    "cell_file": "cell_metadata",
+    "gene_directory": "WMB-10X",
+    "gene_file": "gene",
+    "taxonomy": null,
+    "spatial": false,
+    "expression_directories": [
+      "Zeng-Aging-Mouse-10Xv3"
+    ],
+    "special": "aging",
+    "mapping_directory": "Zeng-Aging-Mouse-WMB-taxonomy"
+  },
+  "DevelopingMouse": {
+    "directory": "Developing-Mouse-Vis-Cortex-10X",
+    "cell_file": "cell_metadata",
+    "gene_directory": "Developing-Mouse-Vis-Cortex-10X",
+    "gene_file": "gene",
+    "taxonomy": "Developing-Mouse-Vis-Cortex-taxonomy",
+    "spatial": false,
+    "expression_directories": [
+      "Developing-Mouse-Vis-Cortex-10X"
+    ]
+  },
+  "MERFISH": {
+    "directory": "MERFISH-C57BL6J-638850",
+    "cell_file": "cell_metadata",
+    "gene_directory": "MERFISH-C57BL6J-638850",
+    "gene_file": "gene",
+    "taxonomy": "WMB-taxonomy",
+    "spatial": true,
+    "expression_directories": [
+      "MERFISH-C57BL6J-638850"
+    ]
+  },
+  "MERFISH_imputed": {
+    "directory": "MERFISH-C57BL6J-638850",
+    "cell_file": "cell_metadata",
+    "gene_directory": "WMB-10X",
+    "gene_file": "gene",
+    "taxonomy": "WMB-taxonomy",
+    "spatial": true,
+    "expression_directories": [
+      "MERFISH-C57BL6J-638850-imputed"
+    ],
+    "imputed": true,
+    "gene_universe_note": "WMB gene annotations are a superset; actual availability is validated against imputed H5AD var."
+  },
+  "Zhuang1": {
+    "directory": "Zhuang-ABCA-1",
+    "cell_file": "cell_metadata",
+    "gene_directory": "Zhuang-ABCA-1",
+    "gene_file": "gene",
+    "taxonomy": "WMB-taxonomy",
+    "spatial": true,
+    "expression_directories": [
+      "Zhuang-ABCA-1"
+    ]
+  },
+  "Zhuang2": {
+    "directory": "Zhuang-ABCA-2",
+    "cell_file": "cell_metadata",
+    "gene_directory": "Zhuang-ABCA-2",
+    "gene_file": "gene",
+    "taxonomy": "WMB-taxonomy",
+    "spatial": true,
+    "expression_directories": [
+      "Zhuang-ABCA-2"
+    ]
+  },
+  "Zhuang3": {
+    "directory": "Zhuang-ABCA-3",
+    "cell_file": "cell_metadata",
+    "gene_directory": "Zhuang-ABCA-3",
+    "gene_file": "gene",
+    "taxonomy": "WMB-taxonomy",
+    "spatial": true,
+    "expression_directories": [
+      "Zhuang-ABCA-3"
+    ]
+  },
+  "Zhuang4": {
+    "directory": "Zhuang-ABCA-4",
+    "cell_file": "cell_metadata",
+    "gene_directory": "Zhuang-ABCA-4",
+    "gene_file": "gene",
+    "taxonomy": "WMB-taxonomy",
+    "spatial": true,
+    "expression_directories": [
+      "Zhuang-ABCA-4"
+    ]
+  },
+  "WHB": {
+    "directory": "WHB-10Xv3",
+    "cell_file": "cell_metadata",
+    "gene_directory": "WHB-10Xv3",
+    "gene_file": "gene",
+    "taxonomy": "WHB-taxonomy",
+    "spatial": false,
+    "expression_directories": [
+      "WHB-10Xv3"
+    ]
+  },
+  "PMDBS": {
+    "directory": "ASAP-PMDBS-10X",
+    "cell_file": "cell_metadata",
+    "gene_directory": "ASAP-PMDBS-10X",
+    "gene_file": "gene",
+    "taxonomy": null,
+    "spatial": false,
+    "expression_directories": [
+      "ASAP-PMDBS-10X"
+    ],
+    "special": "pmdbs",
+    "mapping_directory": "ASAP-PMDBS-taxonomy"
+  },
+  "HMBA": {
+    "directory": "HMBA-10XMultiome-BG-Aligned",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-10XMultiome-BG-Aligned",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": false,
+    "expression_directories": [
+      "HMBA-10XMultiome-BG-Aligned"
+    ]
+  },
+  "HMBA_Human": {
+    "directory": "HMBA-10XMultiome-BG",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-10XMultiome-BG",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": false,
+    "expression_directories": [
+      "HMBA-10XMultiome-BG"
+    ],
+    "file_selector": "human"
+  },
+  "HMBA_Macaque": {
+    "directory": "HMBA-10XMultiome-BG",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-10XMultiome-BG",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": false,
+    "expression_directories": [
+      "HMBA-10XMultiome-BG"
+    ],
+    "file_selector": "macaque"
+  },
+  "HMBA_Marmoset": {
+    "directory": "HMBA-10XMultiome-BG",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-10XMultiome-BG",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": false,
+    "expression_directories": [
+      "HMBA-10XMultiome-BG"
+    ],
+    "file_selector": "marmoset"
+  },
+  "HMBA_spatial_Human": {
+    "directory": "HMBA-MERSCOPE-H22.30.001-BG",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-MERSCOPE-H22.30.001-BG",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": true,
+    "expression_directories": [
+      "HMBA-MERSCOPE-H22.30.001-BG"
+    ]
+  },
+  "HMBA_spatial_Macaque": {
+    "directory": "HMBA-MERSCOPE-QM23.50.001-BG",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-MERSCOPE-QM23.50.001-BG",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": true,
+    "expression_directories": [
+      "HMBA-MERSCOPE-QM23.50.001-BG"
+    ]
+  },
+  "HMBA_spatial_Marmoset": {
+    "directory": "HMBA-Xenium-CJ23.56.004-BG",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-Xenium-CJ23.56.004-BG",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": true,
+    "expression_directories": [
+      "HMBA-Xenium-CJ23.56.004-BG"
+    ]
+  },
+  "HMBA_PatchSeq": {
+    "directory": "HMBA-Macaque-PatchSeq",
+    "cell_file": "cell_metadata",
+    "gene_directory": "HMBA-Macaque-PatchSeq",
+    "gene_file": "gene",
+    "taxonomy": "HMBA-BG-taxonomy-CCN20250428",
+    "spatial": false,
+    "expression_directories": [
+      "HMBA-Macaque-PatchSeq"
+    ],
+    "neurons_only": true
+  },
+  "SEAAD_Multiregion": {
+    "directory": "SEA-AD-Multiregion-10X",
+    "cell_file": "cell_metadata",
+    "gene_directory": "SEA-AD-Multiregion-10X",
+    "gene_file": "gene",
+    "taxonomy": "SEA-AD-Multiregion-taxonomy",
+    "spatial": false,
+    "expression_directories": [
+      "SEA-AD-Multiregion-10X"
+    ],
+    "special": "seaad"
+  },
+  "SEAAD_CaH": {
+    "directory": "SEA-AD-CaH-10X",
+    "cell_file": "cell_metadata",
+    "gene_directory": "SEA-AD-CaH-10X",
+    "gene_file": "gene",
+    "taxonomy": "SEA-AD-CaH-taxonomy",
+    "spatial": false,
+    "expression_directories": [
+      "SEA-AD-CaH-10X"
+    ],
+    "special": "seaad"
+  }
+}

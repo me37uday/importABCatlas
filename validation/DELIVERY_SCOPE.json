@@ -1,0 +1,29 @@
+{
+  "release_candidate": "0.2.0.9000",
+  "audit_date": "2026-10-08",
+  "python_tests_passed": 75,
+  "python_tests_skipped": 3,
+  "route_count": 23,
+  "route_evidence": "CONTROLLED_SYNTHETIC_EXPECTED_SCHEMAS",
+  "migration_safeguards": "PASS_DISPOSABLE_LOCAL_GIT",
+  "R_tests": "NOT_RUN_R_ABSENT",
+  "R_CMD_check": "NOT_RUN_R_ABSENT",
+  "live_atlas_downloads": "NOT_RUN_NETWORK_BLOCKED",
+  "independent_AnnData_comparison": "NOT_RUN_DEPENDENCY_AND_LIVE_DATA_UNAVAILABLE",
+  "biological_timings": "NOT_MEASURED",
+  "all_live_datasets_certified": false,
+  "manuscript_submission_ready": false,
+  "github_modified": false,
+  "visual_QA": {
+    "beginner_guide": "7 pages rendered and visually reviewed",
+    "working_manuscript": "4 pages rendered and visually reviewed",
+    "new_workbook": "all 5 worksheets rendered and visually reviewed"
+  },
+  "main_remaining_risks": [
+    "native HMBA species-specific metadata resolution",
+    "unexecuted R integration and framework APIs",
+    "all real upstream metadata and H5AD schema compatibility",
+    "large metadata and source-file download resource requirements",
+    "real maintainer and licensing decisions"
+  ]
+}

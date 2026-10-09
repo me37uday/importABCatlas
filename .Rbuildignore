@@ -1,0 +1,12 @@
+^\.github$
+^\.git$
+^\.gitignore$
+^\.Rbuildignore$
+^scripts$
+^docs$
+^validation$
+^tests/python$
+^\.pytest_cache$
+^LICENSE-PROPOSED-MIT\.txt$
+^.*\.Rproj$
+^\.Rproj\.user$

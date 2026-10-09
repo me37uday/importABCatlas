@@ -2,10 +2,28 @@
 % Please edit documentation in R/setup.R
 \name{setup_environment}
 \alias{setup_environment}
-\title{Setup the Python environment}
+\title{Configure an explicit Python virtual environment}
 \usage{
-setup_environment()
+setup_environment(
+  envname = "~/.virtualenvs/importABCatlas",
+  python = NULL,
+  install = FALSE,
+  upstream_ref = "main"
+)
+}
+\arguments{
+\item{envname}{Directory for a dedicated virtual environment.}
+
+\item{python}{Python executable used to create it; Python >= 3.10 is required.}
+
+\item{install}{Whether to create the environment and install dependencies.}
+
+\item{upstream_ref}{Official abc_atlas_access Git ref or commit.}
+}
+\value{
+Absolute Python executable path, invisibly.
 }
 \description{
-This function sets up the Python environment required to run the data loading functions.
+Does not install anything unless install is TRUE. The upstream Git reference
+should be replaced by a tested commit for a paper release; main is not a lock.
 }

@@ -1,0 +1,12 @@
+Branch: fix/test 
+Target: /tmp/tmpmdm3d77n/target
+Replace: R, man, inst, tests, scripts, docs, validation, .github, DESCRIPTION, NAMESPACE, README.md, NEWS.md, LICENSE, .gitignore, .Rbuildignore, importABCatlas.Rproj
+Remove obsolete, if present: src, README.Rmd, README.html, environment.yml, current_state.md, .README.Rmd.swp
+DRY RUN ONLY. Review paths and rerun with --apply.
+Branch: fix/test 
+Target: /tmp/tmpmdm3d77n/target
+Replace: R, man, inst, tests, scripts, docs, validation, .github, DESCRIPTION, NAMESPACE, README.md, NEWS.md, LICENSE, .gitignore, .Rbuildignore, importABCatlas.Rproj
+Remove obsolete, if present: src, README.Rmd, README.html, environment.yml, current_state.md, .README.Rmd.swp
+Backup: /tmp/tmpmdm3d77n/target-before-candidate-20261008T092902-87497ecc.zip
+Copied. Inspect git diff, run tests, and commit manually. No push was performed.
+PASS: main-branch refusal, dry-run no writes, unclean-tree refusal, backup recovery, replacement, and Git-history preservation. Disposable local Git repository only; no remote operations.

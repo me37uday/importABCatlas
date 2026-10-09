@@ -2,31 +2,87 @@
 % Please edit documentation in R/fetch_data.R
 \name{fetch_data}
 \alias{fetch_data}
-\title{Fetch data from ABC Atlas based on filters and return a Seurat object}
+\title{Read a sparse expression subset and construct an analysis object}
 \usage{
 fetch_data(
-  download_base = "abc_download_root",
-  metadata,
+  download_base = "~/abc_atlas_cache",
+  metadata = NULL,
   filters = list(),
-  gene_data,
+  gene_data = NULL,
   genes = NULL,
-  assay_name = "RNA"
+  assay_name = "RNA",
+  return_type = c("seurat", "sce", "matrix", "spatial"),
+  data = NULL,
+  dataset = NULL,
+  release = NULL,
+  offline = FALSE,
+  allow_downloads = FALSE,
+  data_type = "raw",
+  max_output_mb = 1024,
+  cell_ids = NULL,
+  n_cells = NULL,
+  seed = 1L,
+  file_map = NULL,
+  obs_column = NULL,
+  counts_semantics = NULL,
+  coordinate_columns = NULL,
+  overrides = list(),
+  verify_reference = FALSE
 )
 }
 \arguments{
-\item{metadata}{A data.frame containing ABC atlas cell metadata (e.g., from \code{get_cell_metadata()}).}
+\item{download_base}{Cache directory, outside the Git repository.}
 
-\item{filters}{A named list of column = value pairs used to filter the metadata.}
+\item{metadata}{Cell metadata, for compatibility with the earlier API.}
 
-\item{gene_data}{A data.frame with a 'gene_symbol' column, typically from \code{load_data()}.}
+\item{filters}{Named list of exact allowed values in metadata columns.}
 
-\item{genes}{A character vector of gene names to include. If NULL, all genes in gene_data$gene_symbol will be used.}
+\item{gene_data}{Gene metadata, for compatibility with the earlier API.}
 
-\item{assay_name}{The name to use for the Seurat assay (default: "RNA").}
+\item{genes}{Exact gene identifiers or unambiguous symbols; NULL means all candidates.}
+
+\item{assay_name}{Seurat assay name.}
+
+\item{return_type}{seurat, sce, matrix, or spatial (SpatialExperiment).}
+
+\item{data}{An abc_data object; preferred over separate metadata arguments.}
+
+\item{dataset}{Registry ID from list_datasets or an exact manifest directory.}
+
+\item{release}{Pinned YYYYMMDD manifest release, or latest for exploration.}
+
+\item{offline}{Use existing local files only.}
+
+\item{allow_downloads}{Explicit consent to expression downloads.}
+
+\item{data_type}{raw or log2; raw is not automatically proof of UMI counts.}
+
+\item{max_output_mb}{Dense-equivalent output-size guard, not a total RAM guarantee.}
+
+\item{cell_ids}{Character vector of exact cell labels, preserving requested order.}
+
+\item{n_cells}{Optional fixed sample size after filtering.}
+
+\item{seed}{Reproducible sampling seed.}
+
+\item{file_map}{Optional named list mapping feature_matrix_label to directory/file_name lists.}
+
+\item{obs_column}{Metadata column whose values exactly match the H5AD obs index.}
+
+\item{counts_semantics}{NULL infers integer nonnegative raw values; FALSE prevents a counts label.}
+
+\item{coordinate_columns}{Explicit anatomical coordinate columns for spatial output.}
+
+\item{overrides}{Named list overriding registry fields for a verified new schema.}
+
+\item{verify_reference}{Compare each selected row to an independent AnnData read (small live tests).}
 }
 \value{
-A Seurat object containing the filtered cells and gene expression data.
+A Seurat, SingleCellExperiment, SpatialExperiment, or sparse-matrix list.
 }
 \description{
-Fetch data from ABC Atlas based on filters and return a Seurat object
+Complete source H5AD files may be downloaded even for a very small output.
+Subsets are read from X, not a guessed layer; cell and gene matching is exact.
+Matrix return type is a list containing expression, metadata, features and provenance.
+Imputed or transformed data is never placed in a counts assay.
 }

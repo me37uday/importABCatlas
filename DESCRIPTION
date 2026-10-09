@@ -1,15 +1,24 @@
-Package: importAllen
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
-Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Package: importABCatlas
+Title: Release-Aware Import of Allen Brain Cell Atlas Data into R
+Version: 0.2.0.9000
+Authors@R: person("Maintainer", "To be completed", role = c("aut", "cre"),
+    email = "maintainer@example.org")
+Description: Resolves Allen Brain Cell Atlas manifest assets, validates metadata
+    joins and exact identifiers, reads selected H5AD expression without whole
+    matrix densification, and constructs sparse matrices or optional Seurat and
+    Bioconductor objects. Uses an explicitly configured external Python process
+    and the official Allen data cache. This release candidate requires live atlas
+    and R integration validation before a public release.
+License: file LICENSE
 Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
-Suggests: 
-    testthat (>= 3.0.0)
+Depends: R (>= 4.2.0)
+Imports: jsonlite, Matrix, methods, stats, utils
+Suggests: testthat (>= 3.1.0), roxygen2, SeuratObject (>= 5.0.0),
+    SingleCellExperiment, S4Vectors, SpatialExperiment, SummarizedExperiment
+SystemRequirements: Python (>= 3.10), numpy, pandas, scipy, h5py,
+    abc_atlas_access; Git for explicit upstream SDK installation
 Config/testthat/edition: 3
+URL: https://github.com/me37uday/importABCatlas
+BugReports: https://github.com/me37uday/importABCatlas/issues
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.1

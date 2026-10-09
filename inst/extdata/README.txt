@@ -1,0 +1,1 @@
+Synthetic 3-cell, 4-gene test fixture, authored for software validation. These are NOT biological measurements. Gene-like labels do not imply a real dataset. Matrix rows are [1,0,3,0];[0,2,0,4];[5,6,0,0].
