@@ -1,0 +1,38 @@
+Package: importABCatlas
+Title: Import Allen Brain Cell Atlas Data into R as Seurat Objects
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Uday", "Rangaswamy",  role = c("aut", "cre"),
+           email = "uday.rangaswamy@ieo.it"),
+    person("Federico", "Caretti", role = c("aut")))
+Description: Provides an R-native interface to the Allen Brain Cell (ABC) Atlas.
+    Downloads release manifests and data files from the public ABC Atlas S3
+    bucket, assembles cell metadata for supported datasets (whole human brain,
+    whole mouse brain, aging mouse, and others) and fetches gene expression for
+    filtered cell populations as sparse 'Seurat' objects. Everything runs in R:
+    no Python installation is required.
+License: MIT + file LICENSE
+Depends:
+    R (>= 4.4.0)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+SystemRequirements: An internet connection the first time each file is used.
+Imports:
+    curl (>= 5.0.0),
+    data.table,
+    dplyr,
+    HDF5Array,
+    jsonlite,
+    Matrix,
+    methods,
+    rhdf5,
+    Seurat,
+    stats,
+    tools,
+    xml2
+Suggests:
+    SeuratObject,
+    testthat (>= 3.0.0),
+    withr
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0
