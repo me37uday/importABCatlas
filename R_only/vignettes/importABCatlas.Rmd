@@ -1,0 +1,396 @@
+---
+title: "Importing Allen Brain Cell Atlas data into R"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Importing Allen Brain Cell Atlas data into R}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<!--
+  This vignette is precomputed: edit importABCatlas.Rmd.orig, not
+  importABCatlas.Rmd, and regenerate with vignettes/precompile.R. Running the
+  code downloads several GB from the ABC Atlas, which is too much for a package
+  build.
+-->
+
+
+
+importABCatlas brings data from the
+[Allen Brain Cell (ABC) Atlas](https://portal.brain-map.org/atlases-and-data/bkp/abc-atlas)
+into R. It does two things:
+
+1. `load_data()` downloads and assembles the cell metadata of a dataset (cells
+   joined with their clusters, donors, regions, ...), so you can choose cells by
+   any of these properties.
+2. `fetch_data()` downloads the expression matrices holding the chosen cells
+   and returns their raw counts as a sparse `Seurat` object.
+
+Everything runs in R and no Python installation is needed. Files are
+downloaded once into a local folder and reused afterwards.
+
+This vignette uses the Aging Mouse dataset as its example: it selects
+striatal microglia from adult and aged mice and compares a few marker genes.
+
+## Installation
+
+The package depends on two Bioconductor packages, so install those first:
+
+
+``` r
+install.packages("BiocManager")
+BiocManager::install(c("rhdf5", "HDF5Array"))
+
+# The R-only package lives in the R_only/ folder of the repository.
+remotes::install_github("me37uday/importABCatlas", subdir = "R_only", ref = "R_only")
+```
+
+
+``` r
+library(importABCatlas)
+```
+
+## Where the data goes
+
+ABC Atlas files are large: metadata tables take 0.5 to 1.5 GB per dataset, and
+each expression matrix takes 3 to 33 GB. Choose a folder with enough space
+before the first download. The folder is taken from, in order:
+
+1. the `download_base` argument of `load_data()` and `fetch_data()`;
+2. the `importABCatlas.download_base` option;
+3. the `ABC_ATLAS_CACHE` environment variable;
+4. a per-user cache folder (`tools::R_user_dir("importABCatlas", "cache")`).
+
+The simplest way is to set the option once per session:
+
+
+``` r
+options(importABCatlas.download_base = "/data/abc_atlas")
+abc_download_dir()  # shows the folder that will be used
+```
+
+The folder has the same layout as the one used by the Allen Institute's Python
+package `abc_atlas_access`, so a folder already filled from Python can be
+reused as is.
+
+## Loading cell metadata
+
+Five datasets are supported:
+
+| `dataset` | Description |
+|---|---|
+| `"WHB"` | Whole human brain, 10x v3 |
+| `"WMB"` | Whole mouse brain, 10x v2, v3 and Multiome |
+| `"AgingMouse"` | Aging mouse brain (adult and aged), 10x v3 |
+| `"HMBA"` | Human and Mammalian Brain Atlas, basal ganglia, 10x Multiome |
+| `"PMDBS"` | ASAP post-mortem brain and spinal cord, 10x |
+
+`load_data()` returns the assembled cell metadata, the gene table and, for a
+few columns of interest, their distinct values:
+
+
+``` r
+aging <- load_data("AgingMouse")
+#> AgingMouse: 1162565 cells
+#> AgingMouse: 32285 genes
+names(aging)
+#> [1] "cell_metadata" "gene_data"     "unique_values"
+dim(aging$cell_metadata)
+#> [1] 1162565      66
+```
+
+There is one row per cell. The `cell_label` column identifies cells, and the
+other columns describe each cell's sample, donor, region and cluster:
+
+
+``` r
+head(aging$cell_metadata[, c("cell_label", "donor_age_category", "donor_sex",
+                             "anatomical_division_label", "subclass_name")])
+#>                 cell_label donor_age_category donor_sex anatomical_division_label
+#> 1 AAACCCAAGGACACTG-367_B04              adult         F                       STR
+#> 2 AAACCCAAGTAAACGT-367_B04              adult         F                       STR
+#> 3 AAACCCACATTGAGCT-367_B04              adult         F                       STR
+#> 4 AAACGAAAGCCGTAAG-367_B04              adult         F                       STR
+#> 5 AAACGAAAGCTACAAA-367_B04              adult         F                       STR
+#> 6 AAAGAACAGAGAGGTA-367_B04              adult         F                       STR
+#>     subclass_name
+#> 1 061 STR D1 Gaba
+#> 2 319 Astro-TE NN
+#> 3     333 Endo NN
+#> 4 319 Astro-TE NN
+#> 5    327 Oligo NN
+#> 6     331 Peri NN
+```
+
+`unique_values` lists the distinct values of the columns most useful for
+choosing cells:
+
+
+``` r
+lengths(aging$unique_values)
+#>       anatomical_division_label                       donor_sex 
+#>                               7                               2 
+#>                       donor_age            cluster_name_cl_info 
+#>                              30                             847 
+#> neurotransmitter_combined_label 
+#>                              15
+aging$unique_values$anatomical_division_label
+#> [1] "STR"       "Isocortex" "P"         "HPF"       "MB"        "HY"        "PAL"
+```
+
+## Choosing cells
+
+`fetch_data()` selects cells with `filters`: a named list where each name is a
+metadata column and each value lists the accepted values for that column. A
+cell is kept when it matches every filter.
+
+Before fetching expression data, check the selection on the metadata. This is
+fast and does not download anything:
+
+
+``` r
+cells <- aging$cell_metadata
+microglia_types <- grep("Microglia", unique(cells$subclass_name), value = TRUE)
+microglia_types
+#> [1] "334 Microglia NN"
+
+filters <- list(anatomical_division_label = "STR",
+                subclass_name = microglia_types)
+
+selected <- cells[cells$anatomical_division_label == "STR" &
+                  cells$subclass_name %in% microglia_types, ]
+table(selected$donor_age_category)
+#> 
+#> adult  aged 
+#>  4845  7695
+```
+
+`fetch_data()` downloads every expression file that contains at least one
+selected cell, even when only a few of its cells are selected. You can see
+which files those are with `feature_matrix_label`. The whole Aging Mouse
+dataset is in a single 13.8 GB file:
+
+
+``` r
+unique(selected$feature_matrix_label)
+#> [1] "Zeng-Aging-Mouse-10Xv3"
+```
+
+To select an exact list of cells, for instance from a previous analysis, filter
+on `cell_label`:
+
+
+``` r
+filters <- list(cell_label = my_cell_labels)
+```
+
+## Fetching expression data
+
+`fetch_data()` takes the metadata and gene table from `load_data()` and the
+filters. It returns raw counts for all genes, or only for the gene symbols
+listed in `genes`. Here it reads all genes of the selected cells:
+
+
+``` r
+microglia <- fetch_data(metadata = aging$cell_metadata,
+                        gene_data = aging$gene_data,
+                        filters = filters)
+#> loading file: Zeng-Aging-Mouse-10Xv3
+#> Warning: 78 gene identifiers in Zeng-Aging-Mouse-10Xv3-raw.h5ad are malformed; genes were
+#> aligned by position.
+microglia
+#> An object of class Seurat 
+#> 32285 features across 12540 samples within 1 assay 
+#> Active assay: RNA (32285 features, 0 variable features)
+#>  1 layer present: counts
+```
+
+The warning comes from the data, not from your selection. In the Aging Mouse
+expression file, 78 gene identifiers (genes whose symbol is used by two genes)
+were saved in a malformed way. The package detects this and matches those
+genes by their position in the file, which is safe because the file and the
+gene table list the genes in the same order.
+
+The Seurat object holds the counts in its `RNA` assay and the cells' full
+metadata:
+
+
+``` r
+counts <- SeuratObject::LayerData(microglia, assay = "RNA", layer = "counts")
+class(counts)
+#> [1] "dgCMatrix"
+#> attr(,"package")
+#> [1] "Matrix"
+counts[c("P2ry12", "Cx3cr1", "Tmem119"), 1:5]
+#> 3 x 5 sparse Matrix of class "dgCMatrix"
+#>         AAAGAACGTGCGAGTA-367_B04 AAAGAACTCGCCTTTG-367_B04 AAAGGGCTCCACTTTA-367_B04
+#> P2ry12                         6                       14                       23
+#> Cx3cr1                        15                       19                       24
+#> Tmem119                        8                       15                       18
+#>         AAAGTCCTCTCGGGAC-367_B04 AAAGTGAGTGGCTGCT-367_B04
+#> P2ry12                        19                       12
+#> Cx3cr1                        18                       24
+#> Tmem119                        1                        6
+
+table(microglia$donor_age_category, microglia$donor_sex)
+#>        
+#>            F    M
+#>   adult 2339 2506
+#>   aged  3151 4544
+```
+
+From here, the object can be used with any Seurat workflow. As a small example,
+here is the share of microglia expressing each of a few genes, by age group:
+
+
+``` r
+genes <- c("P2ry12", "Tmem119", "Cx3cr1", "Apoe", "Lpl", "Cst7", "Lgals3")
+expressing <- counts[genes, ] > 0
+by_age <- split(colnames(microglia), microglia$donor_age_category)
+round(sapply(by_age, function(cells) Matrix::rowMeans(expressing[, cells])), 2)
+#>         adult aged
+#> P2ry12   1.00 0.99
+#> Tmem119  0.99 0.98
+#> Cx3cr1   1.00 1.00
+#> Apoe     0.45 0.42
+#> Lpl      0.07 0.08
+#> Cst7     0.01 0.05
+#> Lgals3   0.01 0.02
+```
+
+The homeostatic markers `P2ry12`, `Tmem119` and `Cx3cr1` are detected in
+nearly every cell of both groups. Among the markers of activated microglia,
+`Cst7` is detected in a larger share of cells in aged mice. The others change
+little in this raw comparison, which does not account for differences in
+sequencing depth.
+
+## Fetching only some genes
+
+When only a few genes are needed, list them in `genes`. The download is the
+same, because files are downloaded whole, but the result is much smaller:
+
+
+``` r
+markers <- fetch_data(metadata = aging$cell_metadata,
+                      gene_data = aging$gene_data,
+                      filters = filters,
+                      genes = genes)
+#> loading file: Zeng-Aging-Mouse-10Xv3
+dim(markers)
+#> [1]     7 12540
+```
+
+## Working offline
+
+Once the files you need are downloaded, set `offline = TRUE` to use only the
+local folder. The network is never contacted, and a missing file is an error
+instead of a download:
+
+
+``` r
+aging <- load_data("AgingMouse", offline = TRUE)
+microglia <- fetch_data(metadata = aging$cell_metadata,
+                        gene_data = aging$gene_data,
+                        filters = filters,
+                        offline = TRUE)
+```
+
+## Reading other files
+
+`abc_cache_connect()` gives direct access to every file of the current ABC
+Atlas release, including tables that `load_data()` does not join. For example,
+the donor table of the Aging Mouse dataset:
+
+
+``` r
+cache <- abc_cache_connect()
+cache$manifest_name
+#> [1] "releases/20260711/manifest.json"
+
+donors <- cache$get_metadata_dataframe("Zeng-Aging-Mouse-10Xv3", "donor")
+head(donors[, c("donor_label", "donor_age", "donor_sex", "donor_genotype")])
+#>                    donor_label donor_age donor_sex                       donor_genotype
+#> 1              C57BL/6J-592557       18M         M                                wt/wt
+#> 2              C57BL/6J-592558       18M         F                                wt/wt
+#> 3 Snap25-IRES2-Cre;Ai14-443008      P549         F Snap25-IRES2-Cre/wt;Ai14(RCL-tdT)/wt
+#> 4 Snap25-IRES2-Cre;Ai14-450087       P56         M Snap25-IRES2-Cre/wt;Ai14(RCL-tdT)/wt
+#> 5 Snap25-IRES2-Cre;Ai14-450091      P547         F                     Ai14(RCL-tdT)/wt
+#> 6 Snap25-IRES2-Cre;Ai14-450095       P56         F Snap25-IRES2-Cre/wt;Ai14(RCL-tdT)/wt
+```
+
+`cache$get_file_path(directory, file_name)` returns the local path of any file,
+downloading it first if needed. The directory and file names are those of the
+[release manifest](https://allen-brain-cell-atlas.s3.us-west-2.amazonaws.com/index.html).
+
+## Session information
+
+
+``` r
+sessionInfo()
+#> R version 4.4.2 (2024-10-31)
+#> Platform: x86_64-redhat-linux-gnu
+#> Running under: Rocky Linux 8.10 (Green Obsidian)
+#> 
+#> Matrix products: default
+#> BLAS/LAPACK: /usr/lib64/libopenblaso-r0.3.15.so;  LAPACK version 3.9.0
+#> 
+#> locale:
+#>  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C               LC_TIME=en_US.UTF-8       
+#>  [4] LC_COLLATE=en_US.UTF-8     LC_MONETARY=it_IT.UTF-8    LC_MESSAGES=en_US.UTF-8   
+#>  [7] LC_PAPER=it_IT.UTF-8       LC_NAME=C                  LC_ADDRESS=C              
+#> [10] LC_TELEPHONE=C             LC_MEASUREMENT=it_IT.UTF-8 LC_IDENTIFICATION=C       
+#> 
+#> time zone: Europe/Rome
+#> tzcode source: system (glibc)
+#> 
+#> attached base packages:
+#> [1] stats     graphics  grDevices utils     datasets  methods   base     
+#> 
+#> other attached packages:
+#> [1] importABCatlas_0.0.0.9000
+#> 
+#> loaded via a namespace (and not attached):
+#>   [1] RColorBrewer_1.1-3     jsonlite_2.0.0         magrittr_2.0.3        
+#>   [4] spatstat.utils_3.1-4   farver_2.1.2           zlibbioc_1.52.0       
+#>   [7] vctrs_0.6.5            ROCR_1.0-11            spatstat.explore_3.4-3
+#>  [10] htmltools_0.5.8.1      S4Arrays_1.6.0         curl_6.3.0            
+#>  [13] Rhdf5lib_1.28.0        SparseArray_1.6.2      rhdf5_2.50.2          
+#>  [16] sctransform_0.4.2      parallelly_1.45.0      KernSmooth_2.23-24    
+#>  [19] htmlwidgets_1.6.4      desc_1.4.3             ica_1.0-3             
+#>  [22] plyr_1.8.9             plotly_4.10.4          zoo_1.8-14            
+#>  [25] igraph_2.1.4           mime_0.13              lifecycle_1.0.5       
+#>  [28] pkgconfig_2.0.3        Matrix_1.7-1           R6_2.6.1              
+#>  [31] fastmap_1.2.0          MatrixGenerics_1.18.1  fitdistrplus_1.2-2    
+#>  [34] future_1.58.0          shiny_1.10.0           digest_0.6.37         
+#>  [37] patchwork_1.3.0        S4Vectors_0.44.0       rprojroot_2.1.1       
+#>  [40] Seurat_5.4.0           tensor_1.5             RSpectra_0.16-2       
+#>  [43] irlba_2.3.5.1          pkgload_1.5.2          progressr_0.15.1      
+#>  [46] spatstat.sparse_3.1-0  httr_1.4.7             polyclip_1.10-7       
+#>  [49] abind_1.4-8            compiler_4.4.2         fastDummies_1.7.5     
+#>  [52] pkgbuild_1.4.8         HDF5Array_1.34.0       MASS_7.3-61           
+#>  [55] DelayedArray_0.32.0    tools_4.4.2            lmtest_0.9-40         
+#>  [58] httpuv_1.6.16          future.apply_1.20.0    goftest_1.2-3         
+#>  [61] glue_1.8.0             nlme_3.1-166           rhdf5filters_1.18.1   
+#>  [64] promises_1.3.3         grid_4.4.2             Rtsne_0.17            
+#>  [67] cluster_2.1.6          reshape2_1.4.4         generics_0.1.4        
+#>  [70] gtable_0.3.6           spatstat.data_3.1-6    tidyr_1.3.1           
+#>  [73] data.table_1.17.4      sp_2.2-0               xml2_1.5.2            
+#>  [76] XVector_0.46.0         BiocGenerics_0.52.0    spatstat.geom_3.4-1   
+#>  [79] RcppAnnoy_0.0.22       ggrepel_0.9.6          RANN_2.6.2            
+#>  [82] pillar_1.10.2          stringr_1.5.1          spam_2.11-1           
+#>  [85] RcppHNSW_0.6.0         later_1.4.2            splines_4.4.2         
+#>  [88] dplyr_1.1.4            lattice_0.22-6         survival_3.7-0        
+#>  [91] deldir_2.0-4           tidyselect_1.2.1       miniUI_0.1.2          
+#>  [94] pbapply_1.7-2          knitr_1.50             gridExtra_2.3         
+#>  [97] IRanges_2.40.1         scattermore_1.2        stats4_4.4.2          
+#> [100] xfun_0.52              matrixStats_1.5.0      stringi_1.8.7         
+#> [103] lazyeval_0.2.2         evaluate_1.0.5         codetools_0.2-20      
+#> [106] tibble_3.3.0           cli_3.6.6              uwot_0.2.3            
+#> [109] xtable_1.8-4           reticulate_1.42.0      Rcpp_1.0.14           
+#> [112] globals_0.18.0         spatstat.random_3.4-1  png_0.1-8             
+#> [115] spatstat.univar_3.1-3  parallel_4.4.2         ggplot2_3.5.2         
+#> [118] dotCall64_1.2          listenv_0.9.1          viridisLite_0.4.2     
+#> [121] scales_1.4.0           ggridges_0.5.6         SeuratObject_5.1.0    
+#> [124] purrr_1.0.4            crayon_1.5.3           rlang_1.2.0           
+#> [127] cowplot_1.1.3
+```

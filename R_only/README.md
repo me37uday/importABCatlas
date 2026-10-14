@@ -34,6 +34,13 @@ cache$get_file_path("WHB-10Xv3", "WHB-10Xv3-Neurons/raw")       # downloads if n
 cache$get_metadata_dataframe("ASAP-PMDBS-10X", "donor")
 ```
 
+For a full walkthrough (choosing cells, fetching their expression, working
+offline), see the vignette: `vignette("importABCatlas", package = "importABCatlas")`
+after installing with `build_vignettes = TRUE`, or read
+[vignettes/importABCatlas.Rmd](vignettes/importABCatlas.Rmd). The vignette is
+precomputed because its code downloads several GB. To regenerate it after a
+change, edit `importABCatlas.Rmd.orig` and run `vignettes/precompile.R`.
+
 ## How it works
 
 | Step | Python package (`abc_atlas_access`) | R-only |
