@@ -2,7 +2,8 @@ Package: importABCatlas
 Title: Import Allen Brain Cell Atlas Data into R as Seurat Objects
 Version: 0.0.0.9000
 Authors@R: c(
-    person("Uday", "Rangaswamy",  role = c("aut", "cre")),
+    person("Uday", "Rangaswamy",  role = c("aut", "cre"),
+           email = "uday.rangaswamy@ieo.it"),
     person("Federico", "Caretti", role = c("aut")))
 Description: Provides an R-native interface to the Allen Brain Cell (ABC) Atlas.
     Wraps the 'abc_atlas_access' Python package via 'reticulate' to download and

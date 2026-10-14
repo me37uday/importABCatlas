@@ -46,8 +46,9 @@
       list(dir = "Zeng-Aging-Mouse-10Xv3", file = "cluster",
            key = "cluster_alias", suffix = c("", "_cl_info"))
     ),
-    # Gene annotation is shared with the human WHB reference, as in the original.
-    gene = list(dir = "WHB-10Xv3"),
+    # No gene table of its own: the expression matrix uses the WMB 10X gene
+    # set (same 32285 genes, same order).
+    gene = list(dir = "WMB-10X"),
     cols_of_interest = c("anatomical_division_label", "donor_sex", "donor_age",
       "cluster_name_cl_info", "neurotransmitter_combined_label")
   ),
