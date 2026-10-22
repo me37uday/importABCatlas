@@ -10,7 +10,15 @@
       "WMB-10Xv2",
       "WMB-10Xv3",
       "WMB-10XMulti"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "single_cell_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "ConsensusMouseAIBS": {
     "directory": "Consensus-WMB-AIBS-10X",
@@ -23,7 +31,15 @@
       "WMB-10Xv2",
       "WMB-10Xv3",
       "WMB-10XMulti"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "single_cell_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "ConsensusMouseMacosko": {
     "directory": "Consensus-WMB-Macosko-10X",
@@ -34,7 +50,15 @@
     "spatial": false,
     "expression_directories": [
       "Consensus-WMB-Macosko-10X"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "AgingMouse": {
     "directory": "Zeng-Aging-Mouse-10Xv3",
@@ -47,7 +71,15 @@
       "Zeng-Aging-Mouse-10Xv3"
     ],
     "special": "aging",
-    "mapping_directory": "Zeng-Aging-Mouse-WMB-taxonomy"
+    "mapping_directory": "Zeng-Aging-Mouse-WMB-taxonomy",
+    "default_data_type": "raw",
+    "modality": "single_cell_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "DevelopingMouse": {
     "directory": "Developing-Mouse-Vis-Cortex-10X",
@@ -58,7 +90,15 @@
     "spatial": false,
     "expression_directories": [
       "Developing-Mouse-Vis-Cortex-10X"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "single_cell_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "MERFISH": {
     "directory": "MERFISH-C57BL6J-638850",
@@ -69,7 +109,15 @@
     "spatial": true,
     "expression_directories": [
       "MERFISH-C57BL6J-638850"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "MERFISH_imputed": {
     "directory": "MERFISH-C57BL6J-638850",
@@ -82,7 +130,15 @@
       "MERFISH-C57BL6J-638850-imputed"
     ],
     "imputed": true,
-    "gene_universe_note": "WMB gene annotations are a superset; actual availability is validated against imputed H5AD var."
+    "gene_universe_note": "WMB gene annotations are a superset; actual availability is validated against imputed H5AD var.",
+    "default_data_type": "log2",
+    "modality": "imputed_spatial_transcriptomics",
+    "available_data_types": [
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_RETEST_PENDING_9007",
+    "expected_measured_genes": 8460
   },
   "Zhuang1": {
     "directory": "Zhuang-ABCA-1",
@@ -93,7 +149,15 @@
     "spatial": true,
     "expression_directories": [
       "Zhuang-ABCA-1"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "Zhuang2": {
     "directory": "Zhuang-ABCA-2",
@@ -104,7 +168,15 @@
     "spatial": true,
     "expression_directories": [
       "Zhuang-ABCA-2"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "Zhuang3": {
     "directory": "Zhuang-ABCA-3",
@@ -115,7 +187,15 @@
     "spatial": true,
     "expression_directories": [
       "Zhuang-ABCA-3"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "Zhuang4": {
     "directory": "Zhuang-ABCA-4",
@@ -126,7 +206,15 @@
     "spatial": true,
     "expression_directories": [
       "Zhuang-ABCA-4"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "WHB": {
     "directory": "WHB-10Xv3",
@@ -137,7 +225,15 @@
     "spatial": false,
     "expression_directories": [
       "WHB-10Xv3"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "PMDBS": {
     "directory": "ASAP-PMDBS-10X",
@@ -150,7 +246,15 @@
       "ASAP-PMDBS-10X"
     ],
     "special": "pmdbs",
-    "mapping_directory": "ASAP-PMDBS-taxonomy"
+    "mapping_directory": "ASAP-PMDBS-taxonomy",
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "HMBA": {
     "directory": "HMBA-10XMultiome-BG-Aligned",
@@ -161,7 +265,15 @@
     "spatial": false,
     "expression_directories": [
       "HMBA-10XMultiome-BG-Aligned"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "HMBA_Human": {
     "directory": "HMBA-10XMultiome-BG",
@@ -173,7 +285,15 @@
     "expression_directories": [
       "HMBA-10XMultiome-BG"
     ],
-    "file_selector": "human"
+    "file_selector": "human",
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "HMBA_Macaque": {
     "directory": "HMBA-10XMultiome-BG",
@@ -185,7 +305,16 @@
     "expression_directories": [
       "HMBA-10XMultiome-BG"
     ],
-    "file_selector": "macaque"
+    "file_selector": "macaque",
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_RETEST_PENDING_9007",
+    "expected_measured_genes": 35219
   },
   "HMBA_Marmoset": {
     "directory": "HMBA-10XMultiome-BG",
@@ -197,7 +326,15 @@
     "expression_directories": [
       "HMBA-10XMultiome-BG"
     ],
-    "file_selector": "marmoset"
+    "file_selector": "marmoset",
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "HMBA_spatial_Human": {
     "directory": "HMBA-MERSCOPE-H22.30.001-BG",
@@ -208,7 +345,15 @@
     "spatial": true,
     "expression_directories": [
       "HMBA-MERSCOPE-H22.30.001-BG"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "HMBA_spatial_Macaque": {
     "directory": "HMBA-MERSCOPE-QM23.50.001-BG",
@@ -219,7 +364,15 @@
     "spatial": true,
     "expression_directories": [
       "HMBA-MERSCOPE-QM23.50.001-BG"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "HMBA_spatial_Marmoset": {
     "directory": "HMBA-Xenium-CJ23.56.004-BG",
@@ -230,7 +383,15 @@
     "spatial": true,
     "expression_directories": [
       "HMBA-Xenium-CJ23.56.004-BG"
-    ]
+    ],
+    "default_data_type": "raw",
+    "modality": "spatial_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "HMBA_PatchSeq": {
     "directory": "HMBA-Macaque-PatchSeq",
@@ -242,7 +403,14 @@
     "expression_directories": [
       "HMBA-Macaque-PatchSeq"
     ],
-    "neurons_only": true
+    "neurons_only": true,
+    "default_data_type": "log2",
+    "modality": "patch_seq_transcriptomics",
+    "available_data_types": [
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "SEAAD_Multiregion": {
     "directory": "SEA-AD-Multiregion-10X",
@@ -254,7 +422,15 @@
     "expression_directories": [
       "SEA-AD-Multiregion-10X"
     ],
-    "special": "seaad"
+    "special": "seaad",
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   },
   "SEAAD_CaH": {
     "directory": "SEA-AD-CaH-10X",
@@ -266,6 +442,14 @@
     "expression_directories": [
       "SEA-AD-CaH-10X"
     ],
-    "special": "seaad"
+    "special": "seaad",
+    "default_data_type": "raw",
+    "modality": "single_nucleus_transcriptomics",
+    "available_data_types": [
+      "raw",
+      "log2"
+    ],
+    "validation_release": "20260711",
+    "validation_status": "LIVE_FETCH_VALIDATED"
   }
 }

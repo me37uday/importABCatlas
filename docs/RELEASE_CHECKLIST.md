@@ -16,3 +16,20 @@ Status at delivery: source candidate only. Check each item with evidence, not op
 12. Tag a stable release, archive it with a real identifier, verify the stable download, and commit to the required availability period. No DOI or licence in this bundle is fabricated.
 13. Authors independently write the submission text under the current journal/ISCB LLM policy, verify all references, disclose permitted assistance, supply real author/funding/conflict/contact information and replace missing results with measured evidence.
 14. Format the eventual article and one genuine runtime figure to the journal's page/word/figure requirements. Confirm the journal policy again immediately before submission; fit and acceptance are not guaranteed.
+
+## 0.2.0.9007 automatic-environment evidence
+
+- Normal users no longer select or persist a Python path. The default resolver uses a private Python 3.11 environment provisioned by reticulate/uv in a clean helper R process.
+- Ambient `RETICULATE_PYTHON`, Homebrew, Conda, and old `IMPORTABCATLAS_PYTHON` settings are ignored in managed mode, avoiding the interpreter drift seen during development.
+- `setup_importABCatlas()` performs dependency probes, requirement-set versioning, setup locking, persistent logs, and repair. The first backend call also triggers setup.
+- The README and beginner guide now start with an R-only workflow.
+- Cross-platform R tests, clean setup on machines without Python, and the two pending large-route live regressions remain pre-merge gates.
+
+## 0.2.0.9006 collaborator-candidate evidence
+
+- Release `20260711`: 23/23 routes passed live metadata loading and exact-file planning.
+- 21/23 routes passed live simple and complex expression retrieval before this candidate.
+- HMBA Macaque and imputed MERFISH exposed final one-to-one feature-axis defects. 0.2.0.9006 adds stable Ensembl/NCBI cross-matching, duplicate-occurrence alignment with group-size guards, canonical one-row-per-feature selection, and a focused live regression script.
+- Do not relabel those two routes as live-fetch validated until `TEST_FAILED_DATASETS_9007.R` returns `all_selected_routes_pass = TRUE`.
+- R tests, `R CMD build`, and `R CMD check` must be rerun on an R-equipped machine for this exact source tree.
+- Maintainer identity and the software-license decision remain blockers for a formal tagged release.

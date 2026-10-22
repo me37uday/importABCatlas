@@ -27,10 +27,26 @@ jobs:
         with:
           extra-packages: any::rcmdcheck
           needs: check
+      - name: Install package for automatic Python smoke test
+        run: R CMD INSTALL .
+      - name: Automatic managed Python setup (no user path)
+        shell: Rscript {0}
+        run: |
+          library(importABCatlas)
+          Sys.setenv(IMPORTABCATLAS_PYTHON = "/path/that/must/not/be/used",
+                     RETICULATE_PYTHON = "/path/that/must/not/be/used")
+          Sys.unsetenv("IMPORTABCATLAS_PYTHON_MODE")
+          setup_importABCatlas()
+          info <- diagnose()
+          stopifnot(identical(info$python$mode, "managed"),
+                    isTRUE(info$python$available))
+          x <- example_data("matrix")
+          stopifnot(identical(dim(x$expression), c(4L, 3L)))
       - name: Check package and optional object integrations
         shell: Rscript {0}
         run: |
-          Sys.setenv(ABCATLAS_PYTHON = unname(Sys.which("python")))
+          Sys.setenv(IMPORTABCATLAS_PYTHON_MODE = "external",
+                     IMPORTABCATLAS_PYTHON = unname(Sys.which("python")))
           rcmdcheck::rcmdcheck(args = "--no-manual", error_on = "error")
       - uses: actions/upload-artifact@v4
         if: always()

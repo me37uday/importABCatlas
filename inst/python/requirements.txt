@@ -1,6 +1,10 @@
-# Compatibility bounds, NOT a tested environment lock.
-# setup_environment installs the official SDK separately from a chosen Git ref.
-numpy>=1.24
-pandas>=2.0
-scipy>=1.10
-h5py>=3.8
+# Tested, package-managed runtime. reticulate/uv resolves this in an isolated
+# Python 3.11 environment; users do not need to install Python themselves.
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.15.3
+h5py==3.16.0
+anndata>=0.11,<0.13
+boto3>=1.40,<2
+tqdm>=4.67,<5
+abc_atlas_access @ https://github.com/AllenInstitute/abc_atlas_access/archive/da54664e8a9c8e2e2ba573d1d8f590b114a149c4.zip

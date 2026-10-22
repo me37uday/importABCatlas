@@ -2,28 +2,30 @@
 % Please edit documentation in R/setup.R
 \name{setup_environment}
 \alias{setup_environment}
-\title{Configure an explicit Python virtual environment}
+\title{Configure Python for importABCatlas}
 \usage{
 setup_environment(
-  envname = "~/.virtualenvs/importABCatlas",
+  envname = NULL,
   python = NULL,
-  install = FALSE,
-  upstream_ref = "main"
+  install = TRUE,
+  upstream_ref = "da54664e8a9c8e2e2ba573d1d8f590b114a149c4"
 )
 }
 \arguments{
-\item{envname}{Directory for a dedicated virtual environment.}
+\item{envname}{Deprecated; retained for compatibility.}
 
-\item{python}{Python executable used to create it; Python >= 3.10 is required.}
+\item{python}{Optional external Python executable. Most users should leave this \code{NULL}.}
 
-\item{install}{Whether to create the environment and install dependencies.}
+\item{install}{Whether setup should be performed.}
 
-\item{upstream_ref}{Official abc_atlas_access Git ref or commit.}
+\item{upstream_ref}{Deprecated; the managed environment uses the SDK commit pinned by the package.}
 }
 \value{
-Absolute Python executable path, invisibly.
+The selected Python executable path, invisibly.
 }
 \description{
-Does not install anything unless install is TRUE. The upstream Git reference
-should be replaced by a tested commit for a paper release; main is not a lock.
+Retained for backwards compatibility. With its defaults this delegates to
+\code{setup_importABCatlas()} and creates the managed environment
+automatically. Supplying \code{python} opts into advanced external-Python mode
+for the current R session.
 }

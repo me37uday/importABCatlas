@@ -1,33 +1,69 @@
-# Internal subprocess bridge. No embedded Python session and no automatic installs.
+# Internal subprocess bridge. Python runs out-of-process; a private environment is prepared automatically on first use.
 .default_release <- "20260711"
 
-# Resolve Python deterministically. Keep this deliberately simple: do not let
-# reticulate, package load hooks, or a previously discovered interpreter mutate
-# the choice. An explicit argument always wins.
-.resolve_abc_python <- function(python = NULL) {
+# Resolve Python deterministically. The default is a package-managed, isolated
+# environment. Ambient Python settings are ignored unless the user deliberately
+# enables advanced external mode. An explicit function argument always wins.
+.resolve_abc_python <- function(python = NULL, auto_setup = TRUE) {
   pick <- function(x) {
     if (is.null(x) || length(x) == 0L || is.na(x[[1L]]) || !nzchar(x[[1L]])) return(NULL)
     path.expand(as.character(x[[1L]]))
   }
 
-  path <- pick(python)
-  if (is.null(path)) path <- pick(Sys.getenv("IMPORTABCATLAS_PYTHON", unset = ""))
-  if (is.null(path)) path <- pick(getOption("importABCatlas.python", ""))
-  if (is.null(path)) path <- pick(Sys.getenv("RETICULATE_PYTHON", unset = ""))
-  if (is.null(path)) path <- pick(Sys.getenv("ABCATLAS_PYTHON", unset = "")) # legacy
-
-  if (is.null(path)) {
-    on_path <- unname(Sys.which(c("python3", "python")))
-    on_path <- on_path[nzchar(on_path)]
-    if (length(on_path)) path <- on_path[[1L]]
+  explicit <- pick(python)
+  if (!is.null(explicit)) {
+    if (!file.exists(explicit)) {
+      stop(sprintf("Configured Python does not exist: %s", explicit), call. = FALSE)
+    }
+    # Preserve virtualenv/managed-environment symlink paths.
+    return(explicit)
   }
 
-  if (is.null(path)) {
-    stop("Python not found. Run setup_environment(install=TRUE), set IMPORTABCATLAS_PYTHON, or set options(importABCatlas.python='/absolute/path/to/python').", call. = FALSE)
+  mode <- Sys.getenv(
+    "IMPORTABCATLAS_PYTHON_MODE",
+    unset = getOption("importABCatlas.python_mode", "managed")
+  )
+  mode <- tolower(as.character(mode[[1L]]))
+  if (!mode %in% c("managed", "external")) {
+    stop("importABCatlas.python_mode must be 'managed' or 'external'.", call. = FALSE)
   }
-  if (!file.exists(path)) stop(sprintf("Configured Python does not exist: %s", path), call. = FALSE)
-  # Preserve virtualenv/venv symlink paths; resolving them bypasses environment site-packages.
-  path
+
+  if (identical(mode, "external")) {
+    path <- pick(Sys.getenv("IMPORTABCATLAS_PYTHON", unset = ""))
+    if (is.null(path)) path <- pick(getOption("importABCatlas.python", ""))
+    if (is.null(path)) {
+      stop(
+        "External Python mode is enabled but no executable is configured. ",
+        "Either run setup_importABCatlas() to return to automatic managed mode, ",
+        "or call setup_environment(python='/absolute/path/to/python').",
+        call. = FALSE
+      )
+    }
+    if (!file.exists(path)) stop(sprintf("Configured Python does not exist: %s", path), call. = FALSE)
+    return(path)
+  }
+
+  status <- .iab_managed_python_status(probe = TRUE)
+  if (!isTRUE(status$healthy)) {
+    if (!isTRUE(auto_setup) || !isTRUE(getOption("importABCatlas.auto_setup", TRUE))) {
+      stop(
+        "The managed Python environment is not ready. Run setup_importABCatlas().",
+        call. = FALSE
+      )
+    }
+    setup_importABCatlas(quiet = FALSE)
+    status <- .iab_managed_python_status(probe = TRUE)
+  }
+  if (!isTRUE(status$healthy)) {
+    stop(
+      "The managed Python environment is not healthy. Run ",
+      "setup_importABCatlas(repair=TRUE).",
+      call. = FALSE
+    )
+  }
+  options(importABCatlas.python = path.expand(status$python),
+          importABCatlas.python_mode = "managed")
+  path.expand(status$python)
 }
 
 # Backwards-compatible internal name used by existing code/tests.
@@ -54,9 +90,17 @@
   # calls, inherit stdout/stderr so bytes, rate and ETA remain visible to the R user.
   # The backend still writes error.json, so structured failures are retained.
   if (isTRUE(show_progress) && interactive()) {
-    status <- system2(python_exe, c(shQuote(script), shQuote(request)), stdout = "", stderr = "")
+    status <- system2(
+      python_exe, c(shQuote(script), shQuote(request)),
+      stdout = "", stderr = "",
+      env = .iab_python_subprocess_env()
+    )
   } else {
-    status <- system2(python_exe, c(shQuote(script), shQuote(request)), stdout = log, stderr = log)
+    status <- system2(
+      python_exe, c(shQuote(script), shQuote(request)),
+      stdout = log, stderr = log,
+      env = .iab_python_subprocess_env()
+    )
   }
   if (!identical(as.integer(status), 0L)) {
     error_file <- file.path(out, "error.json")
@@ -88,6 +132,18 @@
 }
 
 .cache_args <- function(download_base, release, offline) {
-  list(download_base = normalizePath(path.expand(download_base), mustWork = FALSE, winslash = "/"),
-       release = as.character(release), offline = isTRUE(offline))
+  list(
+    download_base = normalizePath(path.expand(download_base), mustWork = FALSE, winslash = "/"),
+    release = as.character(release),
+    offline = isTRUE(offline),
+    check_disk_space = isTRUE(getOption("importABCatlas.check_disk_space", TRUE)),
+    disk_reserve_gb = as.numeric(getOption("importABCatlas.disk_reserve_gb", 1)),
+    disk_safety_factor = as.numeric(getOption("importABCatlas.disk_safety_factor", 1.05)),
+    allow_unknown_size = isTRUE(getOption("importABCatlas.allow_unknown_size", FALSE)),
+    network_retries = as.integer(getOption("importABCatlas.network_retries", 5L)),
+    network_backoff_seconds = as.numeric(getOption("importABCatlas.network_backoff_seconds", 2)),
+    network_connect_timeout_seconds = as.integer(getOption("importABCatlas.network_connect_timeout_seconds", 30L)),
+    network_read_timeout_seconds = as.integer(getOption("importABCatlas.network_read_timeout_seconds", 300L)),
+    download_chunk_mb = as.numeric(getOption("importABCatlas.download_chunk_mb", 8))
+  )
 }

@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-The current official ABC documentation covers more distinct expression components than the ten high-level rows in the supplied workbook. The 23 entries below are importer routes, not 23 independent biological studies. They are configured for the documented release 20260711. Every route passed a synthetic expected-schema fixture; none has a completed live test in this delivery environment. Exact live filenames, schema details and optional object conversion remain release gates. [S1]
+The current official ABC documentation covers more distinct expression components than the ten high-level rows in the supplied workbook. The 23 entries below are importer routes, not 23 independent biological studies. They were live-tested against release `20260711`. All 23 completed metadata loading and exact-file planning. Sixteen completed simple and complex expression fetches with warm-cache equality and axis checks; seven large routes were deliberately not downloaded because the selected H5AD exceeded the 2 GiB validation cap. See `LIVE_VALIDATION_9003.md` for the route-level evidence. A status is release-scoped and must not be transferred to a newer manifest without rerunning validation. [S1]
 
 | Route | Primary metadata directory | Special treatment |
 |---|---|---|
@@ -20,13 +20,13 @@ The current official ABC documentation covers more distinct expression component
 | `WHB` | `WHB-10Xv3` | Native human feature universe and taxonomy. |
 | `PMDBS` | `ASAP-PMDBS-10X` | Native PMDBS genes; optional MapMyCells mapping is separate. |
 | `HMBA` | `HMBA-10XMultiome-BG-Aligned` | Aligned cross-species feature universe. |
-| `HMBA_Human` | `HMBA-10XMultiome-BG` | Species-specific files require live discovery or verified overrides. |
-| `HMBA_Macaque` | `HMBA-10XMultiome-BG` | Species-specific files require live discovery or verified overrides. |
-| `HMBA_Marmoset` | `HMBA-10XMultiome-BG` | Species-specific files require live discovery or verified overrides. |
+| `HMBA_Human` | `HMBA-10XMultiome-BG` | Shared cell metadata filtered through donor `species_genus`; exact `human_gene` table. |
+| `HMBA_Macaque` | `HMBA-10XMultiome-BG` | Exact `macaque_gene`; repeated source identifiers are retained and disambiguated. |
+| `HMBA_Marmoset` | `HMBA-10XMultiome-BG` | Shared cell metadata filtered through donor `species_genus`; exact `marmoset_gene` table. |
 | `HMBA_spatial_Human` | `HMBA-MERSCOPE-H22.30.001-BG` | Native measured spatial panel and coordinates. |
 | `HMBA_spatial_Macaque` | `HMBA-MERSCOPE-QM23.50.001-BG` | Native measured spatial panel and coordinates. |
 | `HMBA_spatial_Marmoset` | `HMBA-Xenium-CJ23.56.004-BG` | Native measured spatial panel and coordinates. |
-| `HMBA_PatchSeq` | `HMBA-Macaque-PatchSeq` | RNA subset; NCBI-style gene IDs; non-neuronal cohort N/A. |
+| `HMBA_PatchSeq` | `HMBA-Macaque-PatchSeq` | RNA expression route; log2-only in the validated manifest; NCBI-style IDs; non-neuronal cohort N/A. Electrophysiology/morphology remain metadata/assets. |
 | `SEAAD_Multiregion` | `SEA-AD-Multiregion-10X` | Regional expression shards, donor/disease joins, own taxonomy. |
 | `SEAAD_CaH` | `SEA-AD-CaH-10X` | Separate Caudate release and taxonomy; no implicit merge. |
 
@@ -101,7 +101,7 @@ Do not call an imputed output a counts assay or use it as independent evidence t
 
 ## HMBA: aligned genes, native species, spatial assays and Patch-seq
 
-The aligned route and native-species routes have different feature universes. Cross-species alignment is not equivalent to renaming all genes to human symbols. Native Human, Macaque and Marmoset file discovery is constrained to the actual manifest and requires unique metadata matches. The descriptive source did not provide an independently downloadable complete native file listing in this execution environment. This is a known validation gap, not a hidden claim of success. [S1, S10]
+The aligned route and native-species routes have different feature universes. Cross-species alignment is not equivalent to renaming all genes to human symbols. Native Human, Macaque and Marmoset share the HMBA cell metadata; the loader first selects donor labels by exact `species_genus`, then streams only matching cells before applying `preview_n`. Their feature tables are exact manifest assets: `human_gene`, `macaque_gene`, and `marmoset_gene`. Tables named `example_*_gene_expression` are not gene metadata. This behavior was derived from the live manifest and passed the release-20260711 load and exact-file planning rerun; Human and Macaque expression fetches remain size-gated, while Marmoset completed live fetch validation. [S1, S10]
 
 ```r
 h <- load_data_HMBA(download_base = cache, preview_n = 20L)
@@ -113,7 +113,7 @@ hs <- load_data_HMBA_spatial("Marmoset", download_base = cache,
 
 Official notebooks and release notes use differing x/X capitalisation in some directory names. Resolution accepts a unique manifest-backed case match, not an invented path. HMBA also has an upstream normalization correction dated 20260331; pinning a recent reviewed manifest is scientifically meaningful, not merely convenient. [S1]
 
-MERSCOPE Human/Macaque and Xenium Marmoset keep their own panels and slab annotations. Patch-seq preserves NCBI-style source gene identifiers rather than assuming every atlas uses Ensembl. Its electrophysiology sweeps and other one-to-many measurements should be accessed separately, not left-joined into one row per cell without a defined aggregation. A non-neuronal Patch-seq benchmark is not applicable to the documented neuronal collection. [S9, S11]
+MERSCOPE Human/Macaque and Xenium Marmoset keep their own panels and slab annotations. Patch-seq preserves NCBI-style source gene identifiers rather than assuming every atlas uses Ensembl, and its route defaults to the log2 expression asset observed in the live manifest. Explicit `data_type="raw"` fails before transfer when raw is unavailable. The native Macaque gene table contains repeated source identifiers; importABCatlas preserves every row, records the original in `source_gene_identifier`, and creates deterministic `.iabdupN` identifiers rather than aggregating features. Querying an ambiguous original identifier fails and reports the disambiguated choices. Electrophysiology sweeps and other one-to-many measurements should be accessed separately, not left-joined into one row per cell without a defined aggregation. A non-neuronal Patch-seq benchmark is not applicable to the documented neuronal collection. [S9, S11]
 
 ## PMDBS, consensus and aging mappings
 

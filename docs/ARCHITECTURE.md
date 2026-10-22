@@ -2,7 +2,7 @@
 
 ## Data flow
 
-R API -> JSON request in a temporary directory -> explicit external Python interpreter -> official AbcProjectCache -> validated metadata / selected H5AD reads -> CSV plus column schema and MatrixMarket -> R sparse matrix / optional analysis object.
+R API -> JSON request in a temporary directory -> package-managed out-of-process Python -> official AbcProjectCache -> validated metadata / selected H5AD reads -> CSV plus column schema and MatrixMarket -> R sparse matrix / optional analysis object.
 
 The Allen SDK owns release manifests, cache paths, downloads and integrity handling. importABCatlas does not maintain guessed S3 URLs, a competing downloader, or hard-coded installation of an interpreter. Python is an implementation dependency; the public workflow is R. The bridge starts a Python process for each call, so startup, CSV transfer and sparse conversion overhead are real costs included in function timing.
 

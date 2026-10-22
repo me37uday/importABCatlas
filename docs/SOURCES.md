@@ -1,6 +1,6 @@
 # Sources and verification scope
 
-Access/review date: 8 October 2026. Primary sources were consulted online. Their rendered example timings and file sizes were not reused as this package's measurements. Data schema documentation can change independently of cached file releases; record the actual selected manifest in every run.
+Access/review dates: 8 and 16 October 2026. Primary sources were consulted online. Their rendered example timings and file sizes were not reused as this package's measurements. Data schema documentation can change independently of cached file releases; record the actual selected manifest in every run.
 
 S1. Allen Institute. ABC Atlas data access introduction, catalogue and release notes. Documents release 20260711 and SDK 1.4.0; includes earlier normalization and schema corrections.
 https://alleninstitute.github.io/abc_atlas_access/intro.html
@@ -60,4 +60,4 @@ https://academic.oup.com/bioinformatics/pages/submission_online
 S16. ISCB acceptable use of LLMs policy, updated 3 April 2025, applied by Bioinformatics. It disallows LLM-drafted paper sections/abstracts while allowing verified code/documentation assistance and background discovery. Merely disclosing or lightly editing a generated draft does not establish compliance.
 https://www.iscb.org/about-iscb/policy-statements-bylaws-and-legal-documents/acceptable-use-of-large-language-models-policy
 
-The package implementation and synthetic tests are new work in this delivery; their evidence is in validation/. Claims about runtime, operating-system support or all-dataset success require the supplied tests to run on actual target environments and source data. Data licences belong to their respective resources and are separate from the still-unresolved code licence.
+The package implementation and synthetic tests are new work in this delivery; their current evidence is described in docs/LIVE_VALIDATION_9006.md and the supplied test scripts. Claims about runtime, operating-system support or all-dataset success require the supplied tests to run on actual target environments and source data. Data licences belong to their respective resources and are separate from the still-unresolved code licence.
