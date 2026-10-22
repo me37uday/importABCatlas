@@ -28,7 +28,12 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
       - name: Install package for automatic Python smoke test
+        if: runner.os != 'Windows'
         run: R CMD INSTALL .
+
+      - name: Install package for automatic Python smoke test
+        if: runner.os == 'Windows'
+        run: R.exe CMD INSTALL .
       - name: Automatic managed Python setup (no user path)
         shell: Rscript {0}
         run: |
