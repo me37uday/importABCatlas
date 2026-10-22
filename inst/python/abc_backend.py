@@ -1886,12 +1886,36 @@ def fetch_data(cache, spec, cell, gene, genes=None, data_type=None,
 
 
 def verify_with_anndata(path, cell, gene, actual, matched_by):
-    """Independent source-value comparison, intended for small live smoke tests."""
+    """Independent source-value comparison, intended for small live smoke tests.
+
+    ``gene`` may be the metadata DataFrame used by the backend or a vector of
+    requested gene identifiers.  Normalize both forms to the canonical
+    ``gene_identifier`` DataFrame before feature-axis reconciliation.
+    """
     try:
         import anndata
     except ImportError as error:
         raise ImportError('anndata is required for verify_reference=True.') from error
-    gene = gene.copy().reset_index(drop=True)
+
+    if isinstance(gene, pd.DataFrame):
+        gene = gene.copy().reset_index(drop=True)
+    elif isinstance(gene, pd.Series):
+        gene = pd.DataFrame({
+            'gene_identifier': gene.astype(str).tolist()
+        })
+    elif isinstance(gene, (list, tuple, np.ndarray, pd.Index)):
+        gene = pd.DataFrame({
+            'gene_identifier': [str(value) for value in gene]
+        })
+    else:
+        raise TypeError(
+            'gene must be a pandas DataFrame, Series, Index, list, tuple, or NumPy array.'
+        )
+
+    if 'gene_identifier' not in gene.columns:
+        raise ValueError(
+            "gene DataFrame must contain a 'gene_identifier' column for independent verification."
+        )
     ad = anndata.read_h5ad(path, backed='r')
     try:
         axis = (pd.Index(ad.obs['cell_label'].astype(str))
