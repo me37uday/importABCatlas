@@ -28,6 +28,42 @@
   c("PYTHONHOME=", "PYTHONPATH=", "PYTHONNOUSERSITE=1")
 }
 
+.iab_system2_python <- function(command, args = character(),
+                                stdout = "", stderr = "") {
+  if (.Platform$OS.type != "windows") {
+    return(system2(
+      command,
+      args,
+      stdout = stdout,
+      stderr = stderr,
+      env = .iab_python_subprocess_env()
+    ))
+  }
+
+  vars <- c("PYTHONHOME", "PYTHONPATH", "PYTHONNOUSERSITE")
+  old <- Sys.getenv(vars, unset = NA_character_)
+  on.exit({
+    Sys.unsetenv(vars)
+    restore <- !is.na(old)
+    if (any(restore)) {
+      do.call(
+        Sys.setenv,
+        as.list(stats::setNames(old[restore], vars[restore]))
+      )
+    }
+  }, add = TRUE)
+
+  Sys.unsetenv(c("PYTHONHOME", "PYTHONPATH"))
+  Sys.setenv(PYTHONNOUSERSITE = "1")
+
+  system2(
+    command,
+    args,
+    stdout = stdout,
+    stderr = stderr
+  )
+}
+
 .iab_python_probe <- function(python) {
   if (is.null(python) || !length(python) || is.na(python[[1L]]) || !nzchar(as.character(python[[1L]]))) {
     return(list(ok = FALSE, python = NA_character_, message = "Python executable is missing."))
@@ -48,13 +84,15 @@
   )
 
   out <- tryCatch(
-    system2(
-      python, c("-c", shQuote(code)),
-      stdout = TRUE, stderr = TRUE,
-      env = .iab_python_subprocess_env()
+    .iab_system2_python(
+      python,
+      c("-c", shQuote(code)),
+      stdout = TRUE,
+      stderr = TRUE
     ),
     error = function(e) structure(conditionMessage(e), status = 1L)
   )
+
   status <- attr(out, "status") %||% 0L
   parsed <- tryCatch(
     jsonlite::fromJSON(tail(out, 1L), simplifyVector = TRUE),

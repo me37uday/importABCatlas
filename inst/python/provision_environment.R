@@ -46,11 +46,40 @@ probe <- paste(
   "raise SystemExit(0 if ok else 2)",
   sep = "; "
 )
-out <- system2(
-  python, c("-c", shQuote(probe)),
-  stdout = TRUE, stderr = TRUE,
-  env = c("PYTHONHOME=", "PYTHONPATH=", "PYTHONNOUSERSITE=1")
-)
+if (.Platform$OS.type == "windows") {
+  vars <- c("PYTHONHOME", "PYTHONPATH", "PYTHONNOUSERSITE")
+  old_env <- Sys.getenv(vars, unset = NA_character_)
+
+  Sys.unsetenv(c("PYTHONHOME", "PYTHONPATH"))
+  Sys.setenv(PYTHONNOUSERSITE = "1")
+
+  out <- tryCatch(
+    system2(
+      python,
+      c("-c", shQuote(probe)),
+      stdout = TRUE,
+      stderr = TRUE
+    ),
+    finally = {
+      Sys.unsetenv(vars)
+      restore <- !is.na(old_env)
+      if (any(restore)) {
+        do.call(
+          Sys.setenv,
+          as.list(stats::setNames(old_env[restore], vars[restore]))
+        )
+      }
+    }
+  )
+} else {
+  out <- system2(
+    python,
+    c("-c", shQuote(probe)),
+    stdout = TRUE,
+    stderr = TRUE,
+    env = c("PYTHONHOME=", "PYTHONPATH=", "PYTHONNOUSERSITE=1")
+  )
+}
 status <- attr(out, "status")
 if (!is.null(status) && as.integer(status) != 0L) {
   stop("Managed Python dependency probe failed:\n", paste(out, collapse = "\n"))

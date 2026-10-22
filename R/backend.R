@@ -90,16 +90,18 @@
   # calls, inherit stdout/stderr so bytes, rate and ETA remain visible to the R user.
   # The backend still writes error.json, so structured failures are retained.
   if (isTRUE(show_progress) && interactive()) {
-    status <- system2(
-      python_exe, c(shQuote(script), shQuote(request)),
-      stdout = "", stderr = "",
-      env = .iab_python_subprocess_env()
+    status <- .iab_system2_python(
+      python_exe,
+      c(shQuote(script), shQuote(request)),
+      stdout = "",
+      stderr = ""
     )
   } else {
-    status <- system2(
-      python_exe, c(shQuote(script), shQuote(request)),
-      stdout = log, stderr = log,
-      env = .iab_python_subprocess_env()
+    status <- .iab_system2_python(
+      python_exe,
+      c(shQuote(script), shQuote(request)),
+      stdout = log,
+      stderr = log
     )
   }
   if (!identical(as.integer(status), 0L)) {
