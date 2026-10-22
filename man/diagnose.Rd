@@ -7,9 +7,9 @@
 diagnose()
 }
 \value{
-A list of versions, interpreter details and dependency probes.
+A list of R, package, Python, and session information.
 }
 \description{
-This diagnostic deliberately does not invoke the ABC backend, so it remains
-useful when optional Python packages such as h5py are missing.
+Reports whether the package-managed Python environment is ready and, when
+available, probes its dependencies. This function never installs anything.
 }

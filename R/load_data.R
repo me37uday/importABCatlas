@@ -26,6 +26,10 @@ load_data <- function(dataset, download_base = "~/abc_atlas_cache", release = .d
     attr(cm, "abc_dataset") <- dataset
     attr(cm, "abc_manifest") <- result$manifest
     attr(cm, "abc_overrides") <- overrides
+    attr(cm, "abc_default_data_type") <- result$spec$default_data_type %||% "raw"
+    attr(cm, "abc_available_data_types") <- unlist(
+      result$spec$available_data_types %||% c("raw", "log2"), use.names = FALSE
+    )
     # Avoid duplicating millions of cell labels in unique_values.
     categories <- names(cm)[vapply(cm, function(x) is.character(x) && length(unique(x)) <= 200L, logical(1))]
     structure(list(cell_metadata = cm, gene_data = gd,
@@ -37,7 +41,16 @@ load_data <- function(dataset, download_base = "~/abc_atlas_cache", release = .d
 
 #' @export
 print.abc_data <- function(x, ...) {
-  cat(sprintf("ABC Atlas metadata: %s\n%d cells; %d candidate genes\nManifest: %s\nExpression is not loaded. Use plan_fetch(data=x).\n",
-              x$dataset, nrow(x$cell_metadata), nrow(x$gene_data), x$release))
+  default_type <- x$provenance$spec$default_data_type %||% "raw"
+  available <- unlist(x$provenance$spec$available_data_types %||% c("raw", "log2"),
+                      use.names = FALSE)
+  cat(sprintf(paste0(
+    "ABC Atlas metadata: %s\n",
+    "%d cells; %d candidate genes\n",
+    "Manifest: %s\n",
+    "Available expression representations: %s (default: %s)\n",
+    "Expression is not loaded. Use plan_fetch(data=x).\n"),
+    x$dataset, nrow(x$cell_metadata), nrow(x$gene_data), x$release,
+    paste(available, collapse = ", "), default_type))
   invisible(x)
 }

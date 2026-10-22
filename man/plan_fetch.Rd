@@ -17,7 +17,7 @@ plan_fetch(
   cell_ids = NULL,
   n_cells = NULL,
   seed = 1L,
-  data_type = "raw",
+  data_type = NULL,
   file_map = NULL,
   overrides = list()
 )
@@ -29,7 +29,7 @@ plan_fetch(
 
 \item{gene_data}{Gene metadata, for compatibility with the earlier API.}
 
-\item{genes}{Exact gene identifiers or unambiguous symbols; NULL means all candidates.}
+\item{genes}{Exact gene identifiers or unambiguous symbols. NULL means all gene-metadata rows that can be matched exactly in every selected H5AD source; metadata-only rows absent from the measured feature axis are dropped and recorded in provenance. Explicit unavailable genes remain an error and are never replaced by zeros.}
 
 \item{dataset}{Registry ID from list_datasets or an exact manifest directory.}
 
@@ -47,14 +47,14 @@ plan_fetch(
 
 \item{seed}{Reproducible sampling seed.}
 
-\item{data_type}{raw or log2; raw is not automatically proof of UMI counts.}
+\item{data_type}{Published representation for the selected route (raw or log2). NULL uses the route default. MERFISH_imputed and HMBA_PatchSeq are log2-only in the validated release; unavailable representations fail before any expression download. Raw is not automatically proof of UMI counts.}
 
 \item{file_map}{Optional named list mapping feature_matrix_label to directory/file_name lists.}
 
 \item{overrides}{Named list overriding registry fields for a verified new schema.}
 }
 \value{
-A list of source files, source-directory sizes and selected output size.
+An \code{abc_fetch_plan} with exact selected-file sizes when available, cache status, additional download bytes, disk-space status, and selected output dimensions. Directory totals are never reported as file sizes.
 }
 \description{
 Preview expression-file requirements without downloading expression

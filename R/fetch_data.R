@@ -15,8 +15,45 @@
                                   sub("^releases/([0-9]+)/manifest.json$", "\\1", known)))
     stop("Metadata and fetch manifest differ. Reload metadata for the intended release.", call. = FALSE)
   if (!length(overrides)) overrides <- attr(metadata, "abc_overrides")
+  default_data_type <- if (!is.null(data)) {
+    data$provenance$spec$default_data_type %||% "raw"
+  } else {
+    attr(metadata, "abc_default_data_type") %||% "raw"
+  }
+  available_data_types <- if (!is.null(data)) {
+    unlist(data$provenance$spec$available_data_types %||% c("raw", "log2"),
+           use.names = FALSE)
+  } else {
+    unlist(attr(metadata, "abc_available_data_types") %||% c("raw", "log2"),
+           use.names = FALSE)
+  }
   list(metadata = metadata, gene_data = gene_data, dataset = dataset,
-       download_base = download_base, release = release, overrides = overrides)
+       download_base = download_base, release = release, overrides = overrides,
+       default_data_type = default_data_type,
+       available_data_types = available_data_types)
+}
+
+.resolve_data_type <- function(data_type, prepared) {
+  available <- as.character(prepared$available_data_types %||% c("raw", "log2"))
+  if (!length(available)) {
+    stop("This dataset route declares no accessible expression representation.",
+         call. = FALSE)
+  }
+  if (is.null(data_type) || !length(data_type) || !nzchar(as.character(data_type[[1L]]))) {
+    data_type <- prepared$default_data_type %||% available[[1L]]
+  }
+  value <- as.character(data_type[[1L]])
+  if (!value %in% c("raw", "log2")) {
+    stop("data_type must be one of: 'raw', 'log2'.", call. = FALSE)
+  }
+  if (!value %in% available) {
+    stop(sprintf(
+      "%s does not publish data_type='%s'. Available data_type values: %s; default: %s.",
+      prepared$dataset, value, paste(sprintf("'%s'", available), collapse = ", "),
+      prepared$default_data_type %||% available[[1L]]
+    ), call. = FALSE)
+  }
+  value
 }
 
 .fetch_call <- function(action, p, args, reader) {
@@ -34,17 +71,18 @@
 #' @param data An abc_data object; preferred over separate metadata arguments.
 #' @param metadata Cell metadata, for compatibility with the earlier API.
 #' @param gene_data Gene metadata, for compatibility with the earlier API.
-#' @param genes Exact gene identifiers or unambiguous symbols; NULL means all candidates.
-#' @param data_type raw or log2; raw is not automatically proof of UMI counts.
+#' @param genes Exact gene identifiers or unambiguous symbols. `NULL` reconciles the authoritative H5AD feature axis, keeps at most one metadata row per measured feature in every selected source, and records unmatched/collapsed alias rows in provenance. Explicit unavailable or duplicate-feature requests remain errors and are never replaced by zeros or aggregated.
+#' @param data_type Published representation for the selected route (`raw` or `log2`). NULL uses the route's declared default. `MERFISH_imputed` and `HMBA_PatchSeq` are log2-only in the validated release; unavailable representations fail before any expression download. Raw is not automatically proof of UMI counts.
 #' @param file_map Optional named list mapping feature_matrix_label to directory/file_name lists.
 #' @inheritParams load_data
-#' @return A list of source files, source-directory sizes and selected output size.
+#' @return An abc_fetch_plan with exact selected-file sizes when available, cache status, additional download bytes, disk-space status, and selected output dimensions. Directory totals are never reported as file sizes.
 #' @export
 plan_fetch <- function(data = NULL, metadata = NULL, gene_data = NULL, genes = NULL,
                        dataset = NULL, download_base = "~/abc_atlas_cache", release = NULL,
                        offline = FALSE, filters = list(), cell_ids = NULL, n_cells = NULL,
-                       seed = 1L, data_type = "raw", file_map = NULL, overrides = list()) {
+                       seed = 1L, data_type = NULL, file_map = NULL, overrides = list()) {
   p <- .prepare_fetch(data, metadata, gene_data, dataset, download_base, release, overrides)
+  data_type <- .resolve_data_type(data_type, p)
   ans <- .fetch_call("plan", p, list(offline = offline, filters = filters, cell_ids = cell_ids,
               n_cells = n_cells, seed = seed, genes = genes, data_type = data_type, file_map = file_map),
               function(out, result) result)
@@ -56,6 +94,9 @@ plan_fetch <- function(data = NULL, metadata = NULL, gene_data = NULL, genes = N
 #'
 #' Complete source H5AD files may be downloaded even for a very small output.
 #' Subsets are read from X, not a guessed layer; cell and gene matching is exact.
+#' H5AD feature axes may use stable identifiers or symbols. The importer performs
+#' deterministic alias reconciliation against AnnData `var` metadata and records
+#' the match methods in provenance.
 #' Matrix return type is a list containing expression, metadata, features and provenance.
 #' Imputed or transformed data is never placed in a counts assay.
 #' @param assay_name Seurat assay name.
@@ -73,11 +114,12 @@ fetch_data <- function(download_base = "~/abc_atlas_cache", metadata = NULL, fil
                         gene_data = NULL, genes = NULL, assay_name = "RNA",
                         return_type = c("seurat", "sce", "matrix", "spatial"), data = NULL,
                         dataset = NULL, release = NULL, offline = FALSE, allow_downloads = FALSE,
-                        data_type = "raw", max_output_mb = 1024, cell_ids = NULL, n_cells = NULL,
+                        data_type = NULL, max_output_mb = 1024, cell_ids = NULL, n_cells = NULL,
                         seed = 1L, file_map = NULL, obs_column = NULL, counts_semantics = NULL,
                         coordinate_columns = NULL, overrides = list(), verify_reference = FALSE) {
   return_type <- match.arg(return_type)
   p <- .prepare_fetch(data, metadata, gene_data, dataset, download_base, release, overrides)
+  data_type <- .resolve_data_type(data_type, p)
   .fetch_call("fetch", p,
     list(offline = offline, filters = filters, genes = genes, data_type = data_type,
          allow_downloads = allow_downloads, max_output_mb = max_output_mb, cell_ids = cell_ids,
@@ -150,29 +192,67 @@ example_data <- function(return_type = c("matrix", "seurat", "sce", "spatial")) 
 
 #' @export
 print.abc_fetch_plan <- function(x, ...) {
-  cat("importABCatlas fetch plan\n\n")
-  cat("Expression representation:", x$data_type %||% "unknown", "\n")
-  cat("Requested output:", x$n_genes, "genes x", x$n_cells, "cells\n")
-  cat("Expression files that would be used:\n")
-  fs <- x$files
-  if (length(fs)) {
-    for (i in seq_along(fs)) {
-      f <- fs[[i]]
-      cat(" - ", f$directory, "/", f$file_name, " [", f$n_cells, " cells]\n", sep = "")
-    }
-  }
   fmt_bytes <- function(n) {
     if (is.null(n) || length(n) == 0L || is.na(n)) return("unknown")
-    sprintf("%.2f MiB (%s bytes)", as.numeric(n) / 1024^2,
-            format(as.numeric(n), scientific = FALSE, big.mark = ","))
+    n <- as.numeric(n)
+    units <- c("B", "KiB", "MiB", "GiB", "TiB")
+    i <- 1L
+    value <- n
+    while (value >= 1024 && i < length(units)) {
+      value <- value / 1024
+      i <- i + 1L
+    }
+    sprintf("%.2f %s (%s bytes)", value, units[[i]],
+            format(n, scientific = FALSE, big.mark = ",", trim = TRUE))
   }
-  if (length(fs)) for (f in fs) {
-    cat("   selected file size: ", fmt_bytes(f$file_bytes),
-        " | cached: ", if (is.null(f$cached)) "unknown" else as.character(f$cached),
-        " | additional download: ", fmt_bytes(f$download_required_bytes), "\n", sep = "")
+
+  cat("importABCatlas fetch plan
+
+")
+  cat("Expression representation:", x$data_type %||% "unknown", "
+")
+  cat("Requested output:", x$n_genes, "genes x", x$n_cells, "cells
+")
+  if (!is.null(x$gene_count_basis)) {
+    cat("Gene-count basis:", x$gene_count_basis, "
+")
   }
-  cat("Total selected-file bytes: ", fmt_bytes(x$total_file_bytes), "\n", sep = "")
-  cat("Total additional download: ", fmt_bytes(x$total_download_bytes), "\n", sep = "")
-  if (!is.null(x$warning)) cat("\n", x$warning, "\n", sep="")
+  cat("Expression files that would be used:
+")
+  fs <- x$files
+  if (length(fs)) {
+    for (f in fs) {
+      cat(" - ", f$directory, "/", f$file_name, " [", f$n_cells, " cells]
+", sep = "")
+      if (!is.null(f$relative_path)) cat("   S3/cache object: ", f$relative_path, "
+", sep = "")
+      cat("   exact selected-file size: ", fmt_bytes(f$file_bytes),
+          " | source: ", f$size_source %||% "unknown",
+          " | cached: ", if (is.null(f$cached)) "unknown" else as.character(f$cached),
+          " | resumable partial: ", fmt_bytes(f$partial_bytes),
+          " | additional download: ", fmt_bytes(f$download_required_bytes), "
+", sep = "")
+      if (!is.null(f$size_error) && nzchar(f$size_error))
+        cat("   size lookup note: ", f$size_error, "
+", sep = "")
+    }
+  }
+  cat("Total selected-file bytes: ", fmt_bytes(x$total_file_bytes), "
+", sep = "")
+  cat("Total additional download: ", fmt_bytes(x$total_download_bytes), "
+", sep = "")
+  if (!is.null(x$disk)) {
+    cat("Free space in cache filesystem: ", fmt_bytes(x$disk$free_bytes), "
+", sep = "")
+    cat("Required free space including safety margin/reserve: ",
+        fmt_bytes(x$disk$required_free_bytes), "
+", sep = "")
+    cat("Enough space: ",
+        if (is.null(x$disk$enough_space)) "unknown" else as.character(x$disk$enough_space), "
+", sep = "")
+  }
+  if (!is.null(x$warning) && nzchar(x$warning)) cat("
+", x$warning, "
+", sep = "")
   invisible(x)
 }

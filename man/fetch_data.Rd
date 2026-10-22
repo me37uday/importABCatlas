@@ -17,7 +17,7 @@ fetch_data(
   release = NULL,
   offline = FALSE,
   allow_downloads = FALSE,
-  data_type = "raw",
+  data_type = NULL,
   max_output_mb = 1024,
   cell_ids = NULL,
   n_cells = NULL,
@@ -39,7 +39,7 @@ fetch_data(
 
 \item{gene_data}{Gene metadata, for compatibility with the earlier API.}
 
-\item{genes}{Exact gene identifiers or unambiguous symbols; NULL means all candidates.}
+\item{genes}{Exact gene identifiers or unambiguous symbols. NULL reconciles the authoritative H5AD feature axis, keeps at most one metadata row per measured feature in every selected source, and records unmatched/collapsed alias rows in provenance. Explicit unavailable or duplicate-feature requests remain errors and are never replaced by zeros or aggregated.}
 
 \item{assay_name}{Seurat assay name.}
 
@@ -55,7 +55,7 @@ fetch_data(
 
 \item{allow_downloads}{Explicit consent to expression downloads.}
 
-\item{data_type}{raw or log2; raw is not automatically proof of UMI counts.}
+\item{data_type}{Published representation for the selected route (raw or log2). NULL uses the route default. MERFISH_imputed and HMBA_PatchSeq are log2-only in the validated release; unavailable representations fail before any expression download. Raw is not automatically proof of UMI counts.}
 
 \item{max_output_mb}{Dense-equivalent output-size guard, not a total RAM guarantee.}
 
@@ -83,6 +83,7 @@ A Seurat, SingleCellExperiment, SpatialExperiment, or sparse-matrix list.
 \description{
 Complete source H5AD files may be downloaded even for a very small output.
 Subsets are read from X, not a guessed layer; cell and gene matching is exact.
+H5AD feature axes may use Ensembl, NCBI, transcript, or symbol aliases. Stable identifiers are preferred to symbols, duplicate source identifiers are aligned only with guarded one-to-one evidence, and match methods are recorded in provenance.
 Matrix return type is a list containing expression, metadata, features and provenance.
 Imputed or transformed data is never placed in a counts assay.
 }

@@ -34,7 +34,7 @@ This can download metadata into a separate selection cache and can require subst
 
 ## Run real measurements
 
-Ensure the selected Python interpreter has psutil, pandas and matplotlib, and the R package plus chosen R framework is installed. Ensure `ABCATLAS_PYTHON` is exported for child R processes; an option set only in an interactive R session is not inherited by a new process.
+Run `setup_importABCatlas()` once before benchmarking. The package-managed Python environment is reused by worker R processes; no Python path needs to be exported. The separate plotting/monitoring requirements are developer tools and can be installed into a normal command-line Python environment.
 
 ```sh
 python -m pip install -r scripts/requirements-benchmark.txt

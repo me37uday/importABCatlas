@@ -3,7 +3,7 @@
 #' @param download_base Cache directory, outside the Git repository.
 #' @param release Pinned YYYYMMDD manifest release, or latest for exploration.
 #' @param offline Use existing local files only.
-#' @return A data frame. Registry membership is not a live validation certificate.
+#' @return A data frame describing each expression route, its modality, published representations, curated default, and release-scoped validation status. Registry membership alone is not a live validation certificate.
 #' @export
 list_datasets <- function(live = FALSE, download_base = "~/abc_atlas_cache",
                           release = .default_release, offline = FALSE) {
@@ -15,10 +15,30 @@ list_datasets <- function(live = FALSE, download_base = "~/abc_atlas_cache",
   registry <- jsonlite::read_json(path)
   do.call(rbind, lapply(names(registry), function(id) {
     s <- registry[[id]]
-    data.frame(dataset = id, directory = s$directory, gene_directory = s$gene_directory,
-               taxonomy = if (is.null(s$taxonomy)) NA_character_ else s$taxonomy,
-               spatial = isTRUE(s$spatial), imputed = isTRUE(s$imputed),
-               validation = "LOCAL_FIXTURES_ONLY_LIVE_PENDING", stringsAsFactors = FALSE)
+    available <- unlist(s$available_data_types %||% c("raw", "log2"), use.names = FALSE)
+    validation_release <- s$validation_release %||% NA_character_
+    requested_release <- sub("^releases/([0-9]+)/manifest\\.json$", "\\1", as.character(release))
+    validation <- s$validation_status %||% "NOT_LIVE_VALIDATED"
+    if (identical(tolower(requested_release), "latest")) {
+      validation <- "DYNAMIC_RELEASE_NOT_VALIDATED"
+    } else if (!is.na(validation_release) && !identical(requested_release, validation_release)) {
+      validation <- sprintf("NOT_VALIDATED_FOR_RELEASE_%s", requested_release)
+    }
+    data.frame(
+      dataset = id,
+      directory = s$directory,
+      gene_directory = s$gene_directory,
+      taxonomy = if (is.null(s$taxonomy)) NA_character_ else s$taxonomy,
+      modality = s$modality %||% if (isTRUE(s$spatial)) "spatial_transcriptomics" else "transcriptomics",
+      spatial = isTRUE(s$spatial),
+      imputed = isTRUE(s$imputed),
+      available_data_types = paste(available, collapse = ","),
+      default_data_type = s$default_data_type %||% available[[1L]],
+      expected_measured_genes = as.integer(s$expected_measured_genes %||% NA_integer_),
+      validation_release = validation_release,
+      validation = validation,
+      stringsAsFactors = FALSE
+    )
   }))
 }
 

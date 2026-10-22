@@ -33,10 +33,10 @@
 test_all_datasets <- function(
     download_base = "~/abc_atlas_validation_isolated",
     release = "20260711", preview_n = 20L,
-    plan_cells = 5L, plan_genes = 3L, data_type = "raw",
+    plan_cells = 5L, plan_genes = 3L, data_type = NULL,
     cleanup = TRUE, output_prefix = "importABCatlas_dataset_validation") {
   stopifnot(requireNamespace("importABCatlas", quietly = TRUE))
-  data_type <- match.arg(data_type, c("raw", "log2"))
+  if (!is.null(data_type)) data_type <- match.arg(data_type, c("raw", "log2"))
   stopifnot(preview_n > 0L, plan_cells > 0L, plan_genes > 0L)
   download_base <- path.expand(download_base)
   dir.create(download_base, recursive = TRUE, showWarnings = FALSE)
@@ -45,7 +45,9 @@ test_all_datasets <- function(
   rows <- vector("list", nrow(catalogue))
   for (i in seq_len(nrow(catalogue))) {
     dataset <- as.character(catalogue$dataset[[i]])
-    representation <- if (identical(dataset, "MERFISH_imputed")) "log2" else data_type
+    route_default <- if ("default_data_type" %in% names(catalogue))
+      as.character(catalogue$default_data_type[[i]]) else if (identical(dataset, "MERFISH_imputed")) "log2" else "raw"
+    representation <- if (is.null(data_type)) route_default else data_type
     cat(sprintf("\n[%d/%d] %s (%s)\n", i, nrow(catalogue), dataset, representation))
     before <- .test_cache_files(download_base)
     load_status <- "FAIL"; plan_status <- "NOT_RUN"

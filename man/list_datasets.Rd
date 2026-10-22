@@ -21,7 +21,7 @@ list_datasets(
 \item{offline}{Use existing local files only.}
 }
 \value{
-A data frame. Registry membership is not a live validation certificate.
+A data frame describing each expression route, its modality, published representations, curated default, and release-scoped validation status. Registry membership alone is not a live validation certificate.
 }
 \description{
 List curated dataset routes or live manifest directories

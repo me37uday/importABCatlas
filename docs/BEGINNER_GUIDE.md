@@ -1,121 +1,198 @@
 # Building, testing and maintaining importABCatlas
 
-## 1. What you have, and what you do not yet have
+## 1. The three folders to keep separate
 
-The ZIP contains a replacement source package, synthetic test data, test scripts, a benchmark runner, and documentation. It does not contain the atlas itself. The original ZIP and workbook were audited, not modified in place. The Google manuscript was not accessible because the available Google Drive integration is disabled by the administrator; the publication material is therefore not an edit of that document.
+There are three different things:
 
-The executable Python subset passed 75 fixture tests, with 3 explicit skips. R and live downloads could not run in the delivery environment. Start with the included synthetic example, then run the live validator. Do not advertise every route as validated until the dataset-specific results pass on a real machine. The data release default is 20260711, based on Allen's current documentation at the audit date, not a freshly downloaded manifest certificate.
+1. the Git repository, which contains source code;
+2. the private Python environment, which importABCatlas manages automatically;
+3. the atlas cache, which can contain very large downloaded data files.
 
-There are three distinct things to keep separate: the Git repository holds small source files and their history; your R and Python installations run that source; the atlas cache holds potentially very large data files. Keep these in different folders. Deleting a source checkout should not delete your downloaded atlas. Never place the cache inside the repository.
+Never place the atlas cache inside the Git repository. Deleting a source checkout
+should not delete downloaded atlas data, and deleting a cache should not delete
+source history.
 
-## 2. Install the prerequisites
+## 2. Install R and the package
 
-Install a current supported R release from CRAN, and optionally RStudio Desktop from Posit. R is the language runtime; RStudio is an editor and interface around it. Install Python >=3.10, Git, and enough free disk space for the source files listed by the manifest. Python 3.11 is the intended CI test version, but that CI has not yet been run. Use a Python/R combination supported by the packages available for your operating system rather than copying an old hard-coded Python 3.10 path.
+Install a supported R release and, optionally, RStudio. Git is needed only if you
+want to contribute code. You do not need to install Python, Conda, or Homebrew
+Python for normal use.
 
-On Windows, use the Python installer option that exposes Python on PATH, then restart RStudio. Rtools is needed when R packages must be compiled from source; select the Rtools version matching your R installation. On macOS, compiler tools may be needed for source builds. Linux package names vary by distribution. Prefer binary R packages where available. Do not run a package installer as administrator merely to bypass an unexplained error.
-
-In an operating-system terminal, check the installations:
-
-```sh
-git --version
-python --version
-Rscript --version
-```
-
-On macOS/Linux the executable may be named `python3`. The R Console accepts R commands such as `library(...)`; the Terminal accepts shell commands such as `git status`. Pasting a shell command into the R Console is a common beginner error. In RStudio these are separate tabs.
-
-## 3. Install and run the supplied candidate locally
-
-Unzip the bundle to a normal writable folder. The package root is the folder containing `DESCRIPTION`, `NAMESPACE`, `R`, `inst`, and `tests`. It is not the parent bundle folder. Replace the example path below with that package root. On Windows use forward slashes, such as `C:/Users/you/Documents/importABCatlas_bundle/importABCatlas`.
+Install importABCatlas from GitHub:
 
 ```r
 install.packages("remotes")
-remotes::install_local("/path/to/importABCatlas", dependencies = NA,
-                       upgrade = "never")
-library(importABCatlas)
-setup_environment(install = TRUE)
-x <- example_data("matrix")
-dim(x$expression)
-# Expected: 4 genes by 3 synthetic cells
-x$cell_metadata$cell_label
+remotes::install_github(
+  "me37uday/importABCatlas",
+  dependencies = NA,
+  upgrade = "never"
+)
 ```
 
-The initial `remotes` command installs the R package and its required R dependencies. `dependencies=NA` avoids automatically installing every optional analysis framework. `setup_environment(install=TRUE)` explicitly creates a dedicated Python virtual environment and installs numerical dependencies plus the official Allen SDK. A virtual environment is an isolated package directory: it prevents this project from accidentally changing Python packages used by unrelated work. It is not a data cache and should not be committed to Git.
-
-The setup function does not silently install Python itself. Where discovery is ambiguous, provide the actual executable path:
+Restart R or RStudio, then run:
 
 ```r
-setup_environment(install = TRUE,
-                  python = "/absolute/path/to/python")
+library(importABCatlas)
+setup_importABCatlas()
 ```
 
-Use the path returned by `Sys.which("python")`, or the known path of the intended installation. After successful setup, `getOption("importABCatlas.python")` shows the dedicated interpreter selected for this R session. A new R session forgets ordinary options, so call `setup_environment()` again with its default `install=FALSE`; this selects an existing environment rather than reinstalling it.
+`setup_importABCatlas()` creates a private Python 3.11 environment using
+reticulate and uv. It does not require administrator access and does not modify
+system Python. The setup happens once and the environment is reused. If its
+cache is removed, the package recreates it automatically.
 
-For noninteractive scripts and CI, set the `IMPORTABCATLAS_PYTHON` environment variable to that exact interpreter. `usethis::edit_r_environ()` can open your personal `.Renviron`; add a line of the form `IMPORTABCATLAS_PYTHON=/absolute/path/to/venv/bin/python`, or the Windows `Scripts/python.exe` equivalent, then restart R. Keep personal environment files out of the repository. A path in `options(importABCatlas.python=...)` takes precedence.
+The first function that needs Python also runs setup automatically, so the
+explicit setup command is optional. It is recommended because the user can see
+setup progress before starting a data download.
 
-Before a paper release, replace setup's default `upstream_ref="main"` with a tested official SDK commit hash. Main is moving software, not a reproducibility lock. `diagnose()` reports the interpreter and installed versions; save it alongside results. Record `pip freeze` from that same interpreter and an R dependency snapshot only after validation.
+Check the installation:
 
-## 4. Select an output format
+```r
+diagnose()
+x <- example_data("matrix")
+dim(x$expression)
+# Expected: 4 genes by 3 cells
+```
 
-The least demanding output is `return_type="matrix"`. It returns a list, not a naked matrix: use `x$expression`, `x$cell_metadata`, `x$gene_data`, and `x$provenance`. The expression matrix is genes by cells and sparse. Its column names are exact cell labels and its row names are source gene identifiers.
+If setup fails because the internet connection was interrupted:
 
-Install optional R frameworks explicitly:
+```r
+setup_importABCatlas(repair = TRUE)
+```
+
+No Python path should be added to `.Renviron` or `.Rprofile` for ordinary use.
+Old `IMPORTABCATLAS_PYTHON` or `RETICULATE_PYTHON` values are ignored in
+managed mode, and `setup_importABCatlas()` resets stale package-specific
+external mode for the current R session.
+
+## 3. Choose an output format
+
+The simplest output is `return_type="matrix"`. It returns a list with:
+
+```r
+x$expression
+x$cell_metadata
+x$gene_data
+x$provenance
+```
+
+Optional frameworks can be installed separately:
 
 ```r
 install.packages("SeuratObject")
 install.packages("BiocManager")
 BiocManager::install(c("SingleCellExperiment", "SpatialExperiment"))
-example_data("seurat")
-example_data("sce")
-example_data("spatial")
 ```
 
-Seurat raw count data enter the counts assay. Transformed data enter a Seurat v5 data layer without fabricated counts. Upstream log2 data do not necessarily follow Seurat's usual natural-log convention: do not blindly call count normalizers, invert with `expm1`, or treat imputed expression as observations. SCE assay names deliberately distinguish `counts`, `raw`, `log2`, and `imputed_log2`. `SpatialExperiment` requires valid anatomical coordinates, not an embedding named x/y that happens to be a UMAP. The package does not attach artificial Visium image objects to MERFISH data.
+Then use `return_type="seurat"`, `"sce"`, or `"spatial"`. Start with matrix
+output when checking a new machine.
 
-## 5. The normal atlas workflow
+## 4. The normal atlas workflow
 
-First inspect the bundled routes. Then query the real manifest; this is a network operation, unlike listing the bundled registry.
+List the package's supported routes:
 
 ```r
-library(importABCatlas)
-setup_environment()
-cache <- "~/abc_atlas_cache"
-release <- "20260711"
 list_datasets()
-live_files <- list_files(download_base = cache, release = release)
-head(live_files)
 ```
 
-A manifest is an index of named, versioned assets. Its date is not necessarily each constituent file's publication date: a newer release can reference older unchanged files. Pin the manifest rather than constructing guessed S3 URLs. Case is resolved only when a unique corresponding directory exists in that actual manifest.
-
-For a first experiment, read a metadata preview. This can still download a large entire CSV; the preview limits rows parsed/returned, not bytes transferred.
+Load metadata first. This does not download expression:
 
 ```r
-d <- load_data_MERFISH(download_base = cache, release = release,
-                       preview_n = 20L)
-names(d$cell_metadata)
-head(d$gene_data)
-ids <- head(d$cell_metadata$cell_label, 5L)
-genes <- head(d$gene_data$gene_identifier, 3L)
-plan_fetch(data = d, cell_ids = ids, genes = genes)
+cache <- "~/abc_atlas_cache"
+
+d <- load_data(
+  dataset = "Zhuang4",
+  download_base = cache,
+  release = "20260711",
+  preview_n = 1000L
+)
 ```
 
-Read the plan before approving expression downloads. It reports selected source files, selected output dimensions and directory-level size context. Directory sizes are not exact sizes of the selected files and not a promise about network traffic. Five selected cells may still require a multi-gigabyte H5AD file. Confirm disk capacity and an appropriate network connection.
+Select cells and inspect the exact expression download:
 
 ```r
-x <- fetch_data(data = d, cell_ids = ids, genes = genes,
-                return_type = "matrix", allow_downloads = TRUE,
-                max_output_mb = 128)
-stopifnot(identical(colnames(x$expression), ids))
-x_again <- fetch_data(data = d, cell_ids = ids, genes = genes,
-                      return_type = "matrix", offline = TRUE)
+cells <- head(d$cell_metadata$cell_label, 5L)
+
+plan <- plan_fetch(
+  data = d,
+  cell_ids = cells,
+  genes = NULL,
+  data_type = "raw"
+)
+
+print(plan)
 ```
 
-Offline means missing local files are an error. It does not mean an empty cache will work. `max_output_mb` limits the dense-equivalent selected output; it is not a hard cap on total memory. H5AD index arrays, metadata, sparse intermediates, CSV bridging and R objects also consume memory.
+The plan reports the exact H5AD file, exact object size, cache state, retained
+partial bytes, additional transfer, and disk-space result. It does not download
+expression and does not substitute a folder total for a file size.
 
-For biological subsets, inspect exact metadata column names and values. Filters are named lists of exact matches, not expressions and not fuzzy searches. For instance, after confirming the source actually contains those values, a filter might select one `feature_matrix_label` and particular cell-type annotations. Missing categories must not be silently invented. A preview and `head()` are schema checks, not representative sampling. For a reproducible selection use reviewed filters and `n_cells=100L, seed=1729L`, save the exact cell IDs, then reload by `cell_ids`.
+After reviewing the plan:
 
-Never convert cell labels to numbers. Some spatial IDs are far larger than a floating-point integer can exactly represent. Excel can irreversibly round them. Read identifiers as strings directly from the source and keep them as strings through R, Python, JSON and CSV.
+```r
+x <- fetch_data(
+  data = d,
+  cell_ids = cells,
+  genes = NULL,
+  data_type = "raw",
+  return_type = "matrix",
+  allow_downloads = TRUE
+)
+```
+
+A request for only a few cells can still require a complete multi-gigabyte H5AD.
+Downloads show progress, speed, and ETA. Interrupted files are retained with a
+`.part` suffix and resume when the same cache is used again.
+
+After the first `genes=NULL` query, use the returned measured identifiers for
+strict smaller queries:
+
+```r
+genes <- head(x$gene_data$gene_identifier, 20L)
+
+y <- fetch_data(
+  data = d,
+  cell_ids = cells,
+  genes = genes,
+  data_type = "raw",
+  return_type = "matrix",
+  allow_downloads = FALSE,
+  offline = TRUE
+)
+```
+
+Keep cell and gene identifiers as character strings. Some cell labels are too
+large to represent safely as numbers, and spreadsheet software can round them.
+
+## 5. Troubleshooting
+
+Run:
+
+```r
+diagnose()
+```
+
+If Python is not ready:
+
+```r
+setup_importABCatlas(repair = TRUE)
+```
+
+If a data download stops, rerun the same command with the same `download_base`.
+Do not delete the `.part` file; it is used for resumption.
+
+When reporting a problem, include the complete command, complete error,
+`packageVersion("importABCatlas")`, `diagnose()`, operating system, dataset,
+release, cache state, and free disk space.
+
+Advanced developers who intentionally need an existing Python can opt out of the
+managed environment for the current R session:
+
+```r
+setup_environment(python = "/absolute/path/to/python")
+```
+
+Normal users should not need this.
 
 ## 6. Git and GitHub: the concepts
 
@@ -206,7 +283,7 @@ On later edits use `devtools::document()`. Check and commit the resulting `man/`
 
 ## 9. Test at several levels
 
-Use the dedicated Python interpreter, not a different system Python, for the Python tests. In a terminal, run its full path followed by the arguments below, or activate that environment first. Install the additional test/reference libraries once:
+The package itself manages Python automatically. The standalone Python fixture tests are developer tests and can run in any compatible development Python. Install their additional test/reference libraries once:
 
 ```sh
 python -m pip install pytest anndata -r scripts/requirements-benchmark.txt
@@ -217,7 +294,7 @@ The bundled suite tests exact huge IDs, missing/duplicate keys, safe joins, taxo
 
 Run `devtools::test()` for R and optional object construction. Skipped optional package tests are not passes. Install SeuratObject and the Bioconductor packages, then rerun. `R CMD check` also examines package metadata, documentation and dependencies; a passing Python suite does not imply R package correctness. The supplied CI checks Linux, macOS and Windows but has not been executed on your GitHub repository.
 
-For live validation, set `IMPORTABCATLAS_PYTHON`, then run from the package root:
+For live validation, run `setup_importABCatlas()` once, then use the package scripts from the repository root:
 
 ```sh
 Rscript scripts/validate_live.R
@@ -230,8 +307,7 @@ The first command records a live catalogue only. The second may download large m
 ```r
 Sys.setenv(ABCATLAS_DATASETS = "MERFISH",
            ABCATLAS_CACHE = path.expand("~/abc_atlas_cache"),
-           ABCATLAS_RELEASE = "20260711",
-           ABCATLAS_PYTHON = getOption("importABCatlas.python"))
+           ABCATLAS_RELEASE = "20260711")
 system2("Rscript", c("scripts/validate_live.R", "--metadata"))
 ```
 

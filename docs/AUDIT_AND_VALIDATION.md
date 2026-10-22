@@ -1,6 +1,6 @@
 # Audit and validation record
 
-Audit date: 2026-10-08. Inputs: the uploaded `importABCatlas-main.zip` and `importABCatlas_status.xlsx`. The Google manuscript was not accessible. The code ZIP, not an independently cloned current GitHub commit, is the repair baseline. Primary documentation was checked online; live S3 file access from the code execution environment failed.
+Initial audit date: 2026-10-08; comprehensive-candidate update: 2026-10-16. Inputs: the uploaded `importABCatlas-main.zip` and `importABCatlas_status.xlsx`. The Google manuscript was not accessible. The code ZIP, not an independently cloned current GitHub commit, is the repair baseline. Primary documentation was checked online; live S3 file access from the code execution environment failed.
 
 ## Workbook interpretation
 
@@ -18,13 +18,13 @@ The WMB/WHB taxonomy pivot discarded original cluster aliases and reconstructed 
 
 HMBA directory capitalisation is inconsistent across official release notes and notebooks. It was too strong to attribute the reported HMBA failure solely to one guessed spelling. The fix resolves a unique actual manifest directory, records it and refuses absent or ambiguous matches; the true live failure cause still requires the live log.
 
-The original setup depended on a hard-coded Python 3.10 installation and mixed environment assumptions. The replacement requires a deliberately selected Python >=3.10, avoids import-time installs, and uses a dedicated optional environment. The SDK default branch is still not a reproducibility lock: maintainers must pin a tested commit.
+The original setup depended on a hard-coded Python 3.10 installation and mixed environment assumptions. The replacement provisions a private Python 3.11 environment automatically with reticulate/uv, verifies every dependency, and runs the backend out of process. Advanced external-Python use is opt-in. The Allen SDK is pinned to the tested commit rather than a moving default branch.
 
 The expression implementation was rewritten to plan selected source shards, preserve string IDs, validate sparse/dense H5AD selection, retain native feature universes, distinguish transformed/imputed expression, and construct optional R frameworks. This is a significant implementation change and therefore increases the importance of independent live reference comparisons; it is not a small patch presumed safe without testing.
 
 ## Executed evidence
 
-The final delivered Python test log records **75 passed, 3 skipped**. Local environment: Python 3.13.5, numpy 2.3.5, pandas 2.2.3, scipy 1.17.0, h5py 3.15.1, Linux. See the machine-readable environment file and JUnit XML rather than relying on this prose alone.
+The comprehensive candidate test log records **108 passed, 3 skipped**. The passing tests include all 23 controlled route fixtures, exact selected-file sizing through local/manifest/S3 metadata paths, insufficient-space and unknown-size safeguards, offline-cache errors, simple and multi-source complex fetches, order preservation, raw/log2 semantics, cache reuse and corrupt-H5AD handling. See the machine-readable environment and scope files rather than relying on this prose alone.
 
 Synthetic HDF5 fixtures exercised dense, CSR and CSC layouts; order permutations; huge numeric-looking IDs; duplicate/missing genes and cells; correct taxonomy aliases; many-to-one joins; explicit file mappings; imputed counts rejection; native gene resolution; request/response handling; full-file-download consent; and all 23 route configurations. Benchmark safety tests reject synthetic data as manuscript timings. A separate test of the candidate-installation helper uses a disposable local Git repository and verifies dry-run, backup, branch and history safeguards.
 
@@ -34,7 +34,7 @@ The three explicit skips document R integration, live Allen access, and independ
 
 R parsing, R package installation, roxygen2, R tests, Seurat/SCE/SpatialExperiment constructors, R CMD check, GitHub Actions, actual Allen metadata/expression downloads, independent real-source comparison, all-shard validation and biological cold/warm benchmarks were not executed here. The execution container had no R and no outbound DNS. Attempts to install R failed because repositories could not be resolved. Python fixture execution was feasible without network. Live runtime cells remain NOT_MEASURED, never zero.
 
-The HMBA Human/Macaque/Marmoset native file discovery is particularly important to validate because the official descriptive page did not expose a complete machine-readable native-species file listing. It requires unique species-specific metadata matches and explicit overrides otherwise. Do not report these routes as verified merely because the synthetic tests pass.
+The current candidate implements native HMBA species access by filtering the shared cell table with donor `species_genus` before preview selection and selecting exact `human_gene`, `macaque_gene`, or `marmoset_gene` metadata. Patch-seq uses only its declared dataset directory and an unambiguous single-file fallback. These repairs pass controlled tests but still require the supplied live harness before being reported as verified.
 
 ## What constitutes a release pass
 
