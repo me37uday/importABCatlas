@@ -15,7 +15,8 @@
 
 # Manifest versions the loaders understand (same window as abc_atlas_access).
 .abc_manifest_compatibility <- c("20230101", "20300101")
-
+# ABC Atlas release validated against this package's dataset registry.
+.abc_default_release <- "20260711"
 # Strings pandas.read_csv treats as missing by default; reused so metadata tables
 # have the same missing values as with the Python package.
 .abc_na_strings <- c("", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN",
@@ -40,6 +41,10 @@
 #'   \code{\link{abc_download_dir}}.
 #' @param offline If \code{TRUE}, use only locally cached data and never contact
 #'   S3. Requires a manifest to have been downloaded previously.
+#' @param release Optional ABC Atlas release version in \code{YYYYMMDD} form,
+#'   for example \code{"20260711"}. When supplied, exactly that release is used.
+#'   When \code{NULL}, the previously used/latest manifest selection behavior is
+#'   preserved.
 #' @return An \code{abc_cache} object: a list with the \code{download_base},
 #'   \code{manifest_name}, \code{version} and \code{offline} fields, plus the
 #'   functions \code{get_file_path(directory, file_name)} (returns the local path
@@ -53,7 +58,8 @@
 #' donors <- cache$get_metadata_dataframe("ASAP-PMDBS-10X", "donor")
 #' }
 #' @export
-abc_cache_connect <- function(download_base = NULL, offline = FALSE) {
+abc_cache_connect <- function(download_base = NULL, offline = FALSE,
+                              release = .abc_default_release) {
   download_base <- abc_download_dir(download_base)
   offline <- isTRUE(offline)
 
@@ -64,14 +70,48 @@ abc_cache_connect <- function(download_base = NULL, offline = FALSE) {
          "'. Run once with offline = FALSE to download the manifest and data.")
   }
 
-  available <- if (offline) .abc_local_manifests(download_base) else .abc_remote_manifests()
-  if (length(available) == 0L) stop("No ABC Atlas release manifests found.")
-  manifest_name <- .abc_choose_manifest(download_base, available)
+  available <- if (offline) {
+    .abc_local_manifests(download_base)
+  } else {
+    .abc_remote_manifests()
+  }
+
+  if (length(available) == 0L) {
+    stop("No ABC Atlas release manifests found.")
+  }
+
+  if (is.null(release)) {
+    manifest_name <- .abc_choose_manifest(download_base, available)
+  } else {
+    release <- as.character(release)
+
+    if (length(release) != 1L || is.na(release) ||
+        !grepl("^[0-9]{8}$", release)) {
+      stop(
+        "'release' must be a single date-like version such as '20260711'.",
+        call. = FALSE
+      )
+    }
+
+    manifest_name <- paste0("releases/", release, "/manifest.json")
+
+    if (!manifest_name %in% available) {
+      stop(
+        "ABC Atlas release '",
+        release,
+        "' is not available",
+        if (offline) " in this offline cache" else "",
+        ".",
+        call. = FALSE
+      )
+    }
+  }
 
   manifest_path <- file.path(download_base, manifest_name)
   if (!file.exists(manifest_path)) {
     .abc_download(paste0(.abc_bucket_url, "/", manifest_name), manifest_path)
   }
+
   manifest <- jsonlite::read_json(manifest_path)
   .abc_check_manifest_version(manifest$version)
 

@@ -5,7 +5,7 @@ test_that("offline connect fails fast without a local manifest", {
 
 test_that("offline connect loads the local manifest and pins it", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   expect_s3_class(cache, "abc_cache")
   expect_equal(cache$manifest_name, "releases/20250101/manifest.json")
   expect_equal(cache$version, "20250101")
@@ -17,7 +17,7 @@ test_that("offline connect loads the local manifest and pins it", {
 
 test_that("file attributes resolve plain names and name/kind", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
 
   a <- .abc_file_attributes(cache, "TEST-10X", "gene")
   expect_equal(a$relative_path, "metadata/TEST-10X/20250101/gene.csv")
@@ -34,7 +34,7 @@ test_that("file attributes resolve plain names and name/kind", {
 
 test_that("offline get_file_path errors for files that were never downloaded", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   unlink(file.path(fx$dir, "metadata/TEST-10X/20250101/gene.csv"))
   expect_error(cache$get_file_path("TEST-10X", "gene"), "not available locally")
 })
@@ -161,4 +161,106 @@ test_that("failed downloads are retried", {
   )
 
   expect_equal(calls, 3L)
+})
+
+test_that("explicit release selects exactly the requested local manifest", {
+  fx <- make_fixture_cache()
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = "20250101"
+  )
+
+  expect_equal(
+    cache$manifest_name,
+    "releases/20250101/manifest.json"
+  )
+  expect_equal(cache$version, "20250101")
+})
+
+test_that("explicit offline release fails when it is not cached", {
+  fx <- make_fixture_cache()
+
+  expect_error(
+    abc_cache_connect(
+      fx$dir,
+      offline = TRUE,
+      release = "20240101"
+    ),
+    "not available in this offline cache"
+  )
+})
+
+test_that("release must be a YYYYMMDD version", {
+  fx <- make_fixture_cache()
+
+  expect_error(
+    abc_cache_connect(
+      fx$dir,
+      offline = TRUE,
+      release = "latest"
+    ),
+    "'release' must be"
+  )
+
+  expect_error(
+    abc_cache_connect(
+      fx$dir,
+      offline = TRUE,
+      release = c("20250101", "20240101")
+    ),
+    "'release' must be"
+  )
+})
+
+test_that("explicit release overrides the last-used manifest", {
+  fx <- make_fixture_cache()
+
+  old_name <- "releases/20240101/manifest.json"
+  old_path <- file.path(fx$dir, old_name)
+
+  dir.create(dirname(old_path), recursive = TRUE, showWarnings = FALSE)
+
+  manifest <- jsonlite::read_json(
+    file.path(
+      fx$dir,
+      "releases",
+      "20250101",
+      "manifest.json"
+    )
+  )
+
+  manifest$version <- "20240101"
+
+  jsonlite::write_json(
+    manifest,
+    old_path,
+    auto_unbox = TRUE
+  )
+
+  cat(
+    old_name,
+    file = file.path(fx$dir, "_manifest_last_used.txt")
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = "20250101"
+  )
+
+  expect_equal(
+    cache$manifest_name,
+    "releases/20250101/manifest.json"
+  )
+  expect_equal(cache$version, "20250101")
+
+  expect_identical(
+    readChar(
+      file.path(fx$dir, "_manifest_last_used.txt"),
+      1000
+    ),
+    "releases/20250101/manifest.json"
+  )
 })

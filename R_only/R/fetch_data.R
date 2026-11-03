@@ -12,6 +12,9 @@
 #' @param assay_name The name to use for the Seurat assay (default: "RNA").
 #' @param offline If `TRUE`, use only locally cached expression data and never
 #'   contact S3 (see [abc_cache_connect()]).
+#' @param release Optional ABC Atlas release version in \code{YYYYMMDD} form.
+#'   Defaults to the release validated against this package. Advanced users may
+#'   supply another release explicitly.
 #' @return A Seurat object containing the filtered cells and gene expression data.
 #' @export
 fetch_data <- function(download_base = NULL,
@@ -20,11 +23,15 @@ fetch_data <- function(download_base = NULL,
                        gene_data,
                        genes = NULL,
                        assay_name = "RNA",
-                       offline = FALSE) {
+                       offline = FALSE,
+                       release = .abc_default_release) {
   # Resolve the download directory and connect to the ABC Atlas cache
   download_base <- abc_download_dir(download_base)
-  abc_cache <- abc_cache_connect(download_base, offline = offline)
-
+  abc_cache <- abc_cache_connect(
+   download_base,
+   offline = offline,
+   release = release
+  )
   # Apply metadata filters
   filtered_meta <- metadata
   for (filter_col in names(filters)) {

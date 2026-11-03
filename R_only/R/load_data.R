@@ -94,6 +94,8 @@
 #'   If \code{NULL} (default), it is resolved by \code{\link{abc_download_dir}}.
 #' @param offline If \code{TRUE}, use only locally cached data and never contact
 #'   S3 (see \code{\link{abc_cache_connect}}).
+#' @param release Optional ABC Atlas release version in \code{YYYYMMDD} form.
+#'   When supplied, metadata are loaded from exactly that release.
 #' @return A list with \code{cell_metadata}, \code{gene_data}, and
 #'   \code{unique_values} (the unique entries of each column of interest, used to
 #'   build filters for \code{\link{fetch_data}}).
@@ -103,7 +105,8 @@
 #' names(WHB$unique_values)
 #' }
 #' @export
-load_data <- function(dataset, download_base = NULL, offline = FALSE) {
+load_data <- function(dataset, download_base = NULL, offline = FALSE,
+                      release = .abc_default_release) {
   datasets <- names(.abc_datasets)
   if (missing(dataset)) {
     stop("Specify a dataset, one of: ", paste(datasets, collapse = ", "))
@@ -112,8 +115,12 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE) {
   spec <- .abc_datasets[[dataset]]
 
   download_base <- abc_download_dir(download_base)
-  abc_cache <- abc_cache_connect(download_base, offline = offline)
 
+  abc_cache <- abc_cache_connect(
+  download_base,
+  offline = offline,
+  release = release
+  )
   .build_dataset(spec, abc_cache, dataset)
 }
 

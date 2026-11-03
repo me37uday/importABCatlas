@@ -115,7 +115,13 @@ make_fixture_cache <- function(dir = withr::local_tempdir(.local_envir = parent.
   jsonlite::write_json(manifest, file.path(dir, "releases", version, "manifest.json"),
                        auto_unbox = TRUE)
 
-  list(dir = dir, truth = truth, cells = cells, genes = genes)
+  list(
+       dir = dir,
+       version = version,
+       truth = truth,
+       cells = cells,
+       genes = genes
+  )
 }
 
 # Dataset spec for the fixture, in the format of the .abc_datasets registry.

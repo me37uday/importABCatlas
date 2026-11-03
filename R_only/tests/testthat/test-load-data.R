@@ -15,7 +15,7 @@ test_that("every registry entry has the fields the builder needs", {
 
 test_that(".build_dataset assembles cells, taxonomy, ROI colours and genes", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   msgs <- capture_messages(res <- .build_dataset(fixture_spec, cache, "TEST"))
   expect_match(msgs, "TEST: 6 cells", all = FALSE)
   expect_match(msgs, "TEST: 4 genes", all = FALSE)
@@ -42,7 +42,12 @@ test_that(".build_dataset assembles cells, taxonomy, ROI colours and genes", {
 test_that("load_data runs end to end on a registered dataset (offline)", {
   fx <- make_fixture_cache()
   local_mocked_bindings(.abc_datasets = list(TEST = fixture_spec))
-  res <- suppressMessages(load_data("TEST", download_base = fx$dir, offline = TRUE))
+  res <- suppressMessages(load_data(
+   "TEST",
+   download_base = fx$dir,
+   offline = TRUE,
+   release = fx$version
+  ))
   expect_named(res, c("cell_metadata", "gene_data", "unique_values"))
   expect_equal(nrow(res$cell_metadata), 6)
 })

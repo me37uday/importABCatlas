@@ -2,7 +2,7 @@ dense <- function(m) as.matrix(m)
 
 test_that("expression matrix matches the truth for all cells and genes", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   cells <- fx$cells
   rownames(cells) <- cells$cell_label
 
@@ -15,7 +15,7 @@ test_that("expression matrix matches the truth for all cells and genes", {
 
 test_that("gene and cell selection, order and block size are respected", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   cells <- fx$cells[c(5, 1, 6, 3), ]          # mixed files, not on-disk order
   rownames(cells) <- cells$cell_label
 
@@ -28,7 +28,7 @@ test_that("gene and cell selection, order and block size are respected", {
 
 test_that("cells absent from their expression file give empty columns", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   cells <- rbind(fx$cells[1:2, ], transform(fx$cells[1, ], cell_label = "ghost"))
   rownames(cells) <- cells$cell_label
 
@@ -40,7 +40,7 @@ test_that("cells absent from their expression file give empty columns", {
 
 test_that("a gene table from another dataset is reported", {
   fx <- make_fixture_cache()
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   cells <- fx$cells
   rownames(cells) <- cells$cell_label
   other <- transform(fx$genes, gene_identifier = paste0("X", gene_identifier))
@@ -52,7 +52,7 @@ test_that("malformed identifiers in the file fall back to positional alignment",
   # As in Zeng-Aging-Mouse-10Xv3: a printed pandas Series instead of the ID.
   garbled <- "gene_symbol\nAaa    G1\nAaa    G3\nName: gene_identifier, dtype: object"
   fx <- make_fixture_cache(var_ids = c("G1", "G2", garbled, "G4"))
-  cache <- abc_cache_connect(fx$dir, offline = TRUE)
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
   cells <- fx$cells
   rownames(cells) <- cells$cell_label
 
@@ -69,21 +69,25 @@ test_that("fetch_data filters cells and returns a Seurat object", {
   fx <- make_fixture_cache()
   obj <- suppressMessages(suppressWarnings(fetch_data(
     download_base = fx$dir, metadata = fx$cells, filters = list(donor_sex = "M"),
-    gene_data = fx$genes, genes = c("Aaa", "Ddd"), offline = TRUE)))
+    gene_data = fx$genes, genes = c("Aaa", "Ddd"), offline = TRUE,
+    release = fx$version)))
 
   expect_s4_class(obj, "Seurat")
   expect_equal(colnames(obj), c("c1", "c3", "c6"))
   expect_equal(obj$donor_sex, c(c1 = "M", c3 = "M", c6 = "M"))
   counts <- SeuratObject::LayerData(obj, assay = "RNA", layer = "counts")
-  expect_equal(unname(dense(counts)), unname(fx$truth[c("G1", "G3", "G4"), c("c1", "c3", "c6")]))
+  expect_equal(unname(dense(counts)),
+               unname(fx$truth[c("G1", "G3", "G4"), c("c1", "c3", "c6")]))
 })
 
 test_that("fetch_data validates filters", {
   fx <- make_fixture_cache()
   expect_error(fetch_data(download_base = fx$dir, metadata = fx$cells,
-                          filters = list(nope = 1), gene_data = fx$genes, offline = TRUE),
+                          filters = list(nope = 1), gene_data = fx$genes,
+                          offline = TRUE, release = fx$version),
                "not found in metadata")
   expect_error(fetch_data(download_base = fx$dir, metadata = fx$cells,
-                          filters = list(donor_sex = "X"), gene_data = fx$genes, offline = TRUE),
+                          filters = list(donor_sex = "X"), gene_data = fx$genes,
+                          offline = TRUE, release = fx$version),
                "No cells left")
 })
