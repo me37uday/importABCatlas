@@ -238,3 +238,184 @@ test_that("abc_fetch_plan prints a readable preflight summary", {
   expect_output(print(plan), "additional download")
   expect_output(print(plan), "No expression files were downloaded")
 })
+
+test_that("data type resolution uses the dataset default", {
+  fx <- make_fixture_cache()
+
+  expect_equal(
+    .abc_resolve_data_type(NULL, fx$cells),
+    "raw"
+  )
+})
+
+test_that("data type resolution accepts published representations", {
+  fx <- make_fixture_cache()
+
+  expect_equal(.abc_resolve_data_type("raw", fx$cells), "raw")
+  expect_equal(.abc_resolve_data_type("log2", fx$cells), "log2")
+})
+
+test_that("data type resolution rejects invalid representations", {
+  fx <- make_fixture_cache()
+
+  expect_error(
+    .abc_resolve_data_type("banana", fx$cells),
+    "data_type must be one of"
+  )
+})
+
+test_that("data type resolution rejects unavailable representations", {
+  fx <- make_fixture_cache()
+  attr(fx$cells, "abc_default_data_type") <- "log2"
+  attr(fx$cells, "abc_available_data_types") <- "log2"
+
+  expect_error(
+    .abc_resolve_data_type("raw", fx$cells),
+    "does not publish"
+  )
+})
+
+test_that("plan_fetch routes raw and log2 to the requested representation", {
+  fx <- make_fixture_cache()
+
+  raw <- plan_fetch(
+    download_base = fx$dir,
+    metadata = fx$cells,
+    gene_data = fx$genes,
+    genes = "Aaa",
+    data_type = "raw",
+    offline = TRUE,
+    release = fx$version
+  )
+
+  log2 <- plan_fetch(
+    download_base = fx$dir,
+    metadata = fx$cells,
+    gene_data = fx$genes,
+    genes = "Aaa",
+    data_type = "log2",
+    offline = TRUE,
+    release = fx$version
+  )
+
+  expect_equal(raw$data_type, "raw")
+  expect_true(all(raw$files$data_type == "raw"))
+  expect_match(raw$files$relative_path, "-raw\\.h5ad$")
+
+  expect_equal(log2$data_type, "log2")
+  expect_true(all(log2$files$data_type == "log2"))
+  expect_match(log2$files$relative_path, "-log2\\.h5ad$")
+})
+
+test_that("expression matrix reads log2 representation without transforming it", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells
+  rownames(cells) <- cells$cell_label
+
+  m <- suppressMessages(
+    .abc_expression_matrix(
+      abc_cache = cache,
+      cells = cells,
+      gene_data = fx$genes,
+      selected_genes = fx$genes$gene_symbol,
+      data_type = "log2"
+    )
+  )
+
+  expect_s4_class(m, "dgCMatrix")
+  expect_equal(
+    unname(dense(m)),
+    unname(fx$truth_log2),
+    tolerance = 1e-12
+  )
+})
+
+test_that("fetch_data stores raw expression in the counts layer", {
+  fx <- make_fixture_cache()
+
+  obj <- suppressMessages(
+    fetch_data(
+      download_base = fx$dir,
+      metadata = fx$cells,
+      gene_data = fx$genes,
+      genes = c("Aaa", "Ddd"),
+      data_type = "raw",
+      offline = TRUE,
+      release = fx$version
+    )
+  )
+
+  counts <- SeuratObject::LayerData(
+    obj,
+    assay = "RNA",
+    layer = "counts"
+  )
+
+  expect_equal(
+    unname(dense(counts)),
+    unname(fx$truth[c("G1", "G3", "G4"), ])
+  )
+})
+
+test_that("fetch_data stores log2 expression in the data layer", {
+  fx <- make_fixture_cache()
+
+  warns <- capture_warnings(
+    obj <- suppressMessages(
+      fetch_data(
+        download_base = fx$dir,
+        metadata = fx$cells,
+        gene_data = fx$genes,
+        genes = c("Aaa", "Ddd"),
+        data_type = "log2",
+        offline = TRUE,
+        release = fx$version
+      )
+    )
+  )
+
+  expect_length(warns, 1)
+  expect_match(
+    warns,
+    "upstream log2-scale data",
+    fixed = TRUE
+  )
+
+  data <- SeuratObject::LayerData(
+    obj,
+    assay = "RNA",
+    layer = "data"
+  )
+
+  expect_equal(
+    unname(dense(data)),
+    unname(fx$truth_log2[c("G1", "G3", "G4"), ]),
+    tolerance = 1e-12
+  )
+
+  expect_false("counts" %in% SeuratObject::Layers(obj[["RNA"]]))
+})
+
+test_that("fetch_data uses the route default representation", {
+  fx <- make_fixture_cache()
+
+  obj <- suppressMessages(
+    fetch_data(
+      download_base = fx$dir,
+      metadata = fx$cells,
+      gene_data = fx$genes,
+      genes = "Ddd",
+      offline = TRUE,
+      release = fx$version
+    )
+  )
+
+  expect_true("counts" %in% SeuratObject::Layers(obj[["RNA"]]))
+  expect_false("data" %in% SeuratObject::Layers(obj[["RNA"]]))
+})

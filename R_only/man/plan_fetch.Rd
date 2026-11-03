@@ -10,7 +10,7 @@ plan_fetch(
   filters = list(),
   gene_data,
   genes = NULL,
-  data_type = "raw",
+  data_type = NULL,
   offline = FALSE,
   release = .abc_default_release
 )
@@ -26,7 +26,8 @@ plan_fetch(
 
 \item{genes}{Character vector of gene symbols. If \code{NULL}, all genes are used.}
 
-\item{data_type}{Expression representation to plan. Currently \code{"raw"}.}
+\item{data_type}{Published expression representation (\code{"raw"} or \code{"log2"}).
+If \code{NULL}, the dataset route's declared default is used.}
 
 \item{offline}{If \code{TRUE}, use only the locally cached manifest.}
 

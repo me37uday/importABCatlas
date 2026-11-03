@@ -99,14 +99,40 @@ make_fixture_cache <- function(dir = withr::local_tempdir(.local_envir = parent.
                     0, 4, 0, 0,
                     0, 0, 0, 0), nrow = 4,
                   dimnames = list(genes$gene_identifier, cells$cell_label))
+  truth_log2 <- log2(truth + 1)
+
   for (f in c("TEST-A", "TEST-B")) {
     in_file <- cells$cell_label[cells$feature_matrix_label == f]
     in_file <- rev(in_file)  # on-disk order differs from metadata order
-    rel <- file.path("expression_matrices", "TEST-10X", version, paste0(f, "-raw.h5ad"))
-    dir.create(file.path(dir, dirname(rel)), recursive = TRUE, showWarnings = FALSE)
-    write_h5ad(file.path(dir, rel), t(truth[, in_file]), in_file,
-               var_ids %||% genes$gene_identifier, genes$gene_symbol)
-    add_file("TEST-10X", "expression_matrices", f, rel, sub = "raw")
+
+    for (data_type in c("raw", "log2")) {
+      values <- if (data_type == "raw") truth else truth_log2
+      rel <- file.path(
+        "expression_matrices",
+        "TEST-10X",
+        version,
+        paste0(f, "-", data_type, ".h5ad")
+      )
+      dir.create(
+        file.path(dir, dirname(rel)),
+        recursive = TRUE,
+        showWarnings = FALSE
+      )
+      write_h5ad(
+        file.path(dir, rel),
+        t(values[, in_file]),
+        in_file,
+        var_ids %||% genes$gene_identifier,
+        genes$gene_symbol
+      )
+      add_file(
+        "TEST-10X",
+        "expression_matrices",
+        f,
+        rel,
+        sub = data_type
+      )
+    }
   }
 
   manifest <- list(version = version, resource_uri = "s3://example.invalid/",
@@ -115,10 +141,15 @@ make_fixture_cache <- function(dir = withr::local_tempdir(.local_envir = parent.
   jsonlite::write_json(manifest, file.path(dir, "releases", version, "manifest.json"),
                        auto_unbox = TRUE)
 
+  attr(cells, "abc_dataset") <- "TEST"
+  attr(cells, "abc_default_data_type") <- "raw"
+  attr(cells, "abc_available_data_types") <- c("raw", "log2")
+
   list(
        dir = dir,
        version = version,
        truth = truth,
+       truth_log2 = truth_log2,
        cells = cells,
        genes = genes
   )
@@ -126,6 +157,8 @@ make_fixture_cache <- function(dir = withr::local_tempdir(.local_envir = parent.
 
 # Dataset spec for the fixture, in the format of the .abc_datasets registry.
 fixture_spec <- list(
+  default_data_type = "raw",
+  available_data_types = c("raw", "log2"),
   cell = list(dir = "TEST-10X", col_classes = c(cell_label = "character")),
   taxonomy = "TEST-taxonomy",
   roi = list(dir = "TEST-10X", file = "region_of_interest_structure_map"),

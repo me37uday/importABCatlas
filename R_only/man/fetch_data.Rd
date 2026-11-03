@@ -11,6 +11,7 @@ fetch_data(
   gene_data,
   genes = NULL,
   assay_name = "RNA",
+  data_type = NULL,
   offline = FALSE,
   release = .abc_default_release
 )
@@ -31,6 +32,10 @@ columns, typically the \code{gene_data} element returned by \code{\link[=load_da
 \item{genes}{A character vector of gene names to include. If NULL, all genes in gene_data$gene_symbol will be used.}
 
 \item{assay_name}{The name to use for the Seurat assay (default: "RNA").}
+
+\item{data_type}{Published expression representation (\code{"raw"} or \code{"log2"}).
+If \code{NULL}, the dataset route's declared default is used. Raw expression is
+stored in the counts layer; log2 expression is stored in the data layer.}
 
 \item{offline}{If \code{TRUE}, use only locally cached expression data and never
 contact S3 (see \code{\link[=abc_cache_connect]{abc_cache_connect()}}).}

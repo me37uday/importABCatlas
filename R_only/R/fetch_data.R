@@ -10,6 +10,9 @@
 #'   columns, typically the `gene_data` element returned by [load_data()].
 #' @param genes A character vector of gene names to include. If NULL, all genes in gene_data$gene_symbol will be used.
 #' @param assay_name The name to use for the Seurat assay (default: "RNA").
+#' @param data_type Published expression representation (`"raw"` or `"log2"`).
+#'   If `NULL`, the dataset route's declared default is used. Raw expression is
+#'   stored in the counts layer; log2 expression is stored in the data layer.
 #' @param offline If `TRUE`, use only locally cached expression data and never
 #'   contact S3 (see [abc_cache_connect()]).
 #' @param release Optional ABC Atlas release version in \code{YYYYMMDD} form.
@@ -23,6 +26,7 @@ fetch_data <- function(download_base = NULL,
                        gene_data,
                        genes = NULL,
                        assay_name = "RNA",
+                       data_type = NULL,
                        offline = FALSE,
                        release = .abc_default_release) {
   # Resolve the download directory and connect to the ABC Atlas cache
@@ -35,24 +39,56 @@ fetch_data <- function(download_base = NULL,
 
   # Apply metadata filters and resolve selected genes
   prepared <- .abc_prepare_fetch(metadata, filters, gene_data, genes)
+  data_type <- .abc_resolve_data_type(data_type, prepared$metadata)
   filtered_meta <- prepared$metadata
   genes <- prepared$genes
 
   # Fetch gene expression data as a sparse genes x cells matrix
-  counts <- .abc_expression_matrix(
+  expression <- .abc_expression_matrix(
     abc_cache = abc_cache,
     cells = filtered_meta,
     gene_data = gene_data,
     selected_genes = genes,
-    data_type = "raw"
+    data_type = data_type
   )
 
-  # Create Seurat object (counts stays sparse end to end)
-  seurat_obj <- Seurat::CreateSeuratObject(
-    counts = counts,
-    assay = assay_name,
-    meta.data = filtered_meta
+  if (data_type == "raw") {
+    seurat_obj <- Seurat::CreateSeuratObject(
+      counts = expression,
+      assay = assay_name,
+      meta.data = filtered_meta
     )
+  } else {
+    warning(
+      "This is upstream log2-scale data, not necessarily Seurat's usual ",
+      "natural-log normalization. Do not apply count-based normalization or ",
+      "invert it with expm1 without checking the source transformation.",
+      call. = FALSE
+    )
+
+    assay <- SeuratObject::CreateAssay5Object(data = expression)
+
+    # A transformed log2 assay intentionally has a data layer and no counts
+    # layer. During CreateSeuratObject(), SeuratObject attempts to calculate
+    # count-derived QC fields and warns when it cannot find counts. These two
+    # warnings are expected for this valid data-only assay, so muffle only
+    # their exact messages. Any other Seurat warning remains visible.
+    seurat_obj <- withCallingHandlers(
+      Seurat::CreateSeuratObject(
+        counts = assay,
+        assay = assay_name,
+        meta.data = filtered_meta
+      ),
+      warning = function(w) {
+        if (conditionMessage(w) %in% c(
+          "No layers found matching search pattern provided",
+          "Cannot find the layer(s) specified"
+        )) {
+          invokeRestart("muffleWarning")
+        }
+      }
+    )
+  }
 
   return(seurat_obj)
 }
@@ -67,20 +103,22 @@ fetch_data <- function(download_base = NULL,
 #' @param filters Named list of column = value filters.
 #' @param gene_data Gene metadata, typically from [load_data()].
 #' @param genes Character vector of gene symbols. If `NULL`, all genes are used.
-#' @param data_type Expression representation to plan. Currently `"raw"`.
+#' @param data_type Published expression representation (`"raw"` or `"log2"`).
+#'   If `NULL`, the dataset route's declared default is used.
 #' @param offline If `TRUE`, use only the locally cached manifest.
 #' @param release ABC Atlas release. Defaults to the package-validated release.
 #' @return An `abc_fetch_plan` object describing the requested output and
 #'   expression files required to produce it.
 #' @export
 plan_fetch <- function(download_base = NULL, metadata, filters = list(),
-                       gene_data, genes = NULL, data_type = "raw",
+                       gene_data, genes = NULL, data_type = NULL,
                        offline = FALSE, release = .abc_default_release) {
   download_base <- abc_download_dir(download_base)
   abc_cache <- abc_cache_connect(download_base, offline = offline,
                                  release = release)
 
   prepared <- .abc_prepare_fetch(metadata, filters, gene_data, genes)
+  data_type <- .abc_resolve_data_type(data_type, prepared$metadata)
   files <- .abc_expression_files(abc_cache, prepared$metadata,
                                  data_type = data_type)
 
@@ -138,6 +176,54 @@ print.abc_fetch_plan <- function(x, ...) {
   )
 
   invisible(x)
+}
+
+# Resolve an expression representation from dataset metadata.
+.abc_resolve_data_type <- function(data_type, metadata) {
+  default <- attr(metadata, "abc_default_data_type")
+  available <- attr(metadata, "abc_available_data_types")
+
+  if (is.null(default) || !length(default)) {
+    default <- "raw"
+  }
+  if (is.null(available) || !length(available)) {
+    available <- c("raw", "log2")
+  }
+
+  default <- as.character(default[[1L]])
+  available <- as.character(available)
+
+  if (is.null(data_type) || !length(data_type) ||
+      !nzchar(as.character(data_type[[1L]]))) {
+    data_type <- default
+  }
+
+  if (length(data_type) != 1L || is.na(data_type)) {
+    stop("data_type must be one of: 'raw', 'log2'.", call. = FALSE)
+  }
+
+  data_type <- as.character(data_type)
+
+  if (!data_type %in% c("raw", "log2")) {
+    stop("data_type must be one of: 'raw', 'log2'.", call. = FALSE)
+  }
+
+  if (!data_type %in% available) {
+    dataset <- attr(metadata, "abc_dataset")
+    if (is.null(dataset) || !length(dataset)) {
+      dataset <- "This dataset"
+    }
+
+    stop(
+      dataset, " does not publish data_type='", data_type,
+      "'. Available data_type values: ",
+      paste(sprintf("'%s'", available), collapse = ", "),
+      "; default: ", default, ".",
+      call. = FALSE
+    )
+  }
+
+  data_type
 }
 
 # Apply cell filters and resolve the requested genes for a fetch.

@@ -18,6 +18,8 @@
 #   cols_of_interest columns to summarise into `unique_values`
 .abc_datasets <- list(
   WHB = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
     cell = list(dir = "WHB-10Xv3", col_classes = c(cell_label = "character")),
     taxonomy = "WHB-taxonomy",
     roi = list(dir = "WHB-10Xv3", file = "region_of_interest_structure_map"),
@@ -27,6 +29,8 @@
       "subcluster", "cluster", "supercluster", "neurotransmitter")
   ),
   WMB = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
     cell = list(dir = "WMB-10X", col_classes = c(cell_label = "character")),
     taxonomy = "WMB-taxonomy",
     gene = list(dir = "WMB-10X"),
@@ -35,6 +39,8 @@
       "supertype", "cluster", "neurotransmitter")
   ),
   AgingMouse = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
     cell = list(dir = "Zeng-Aging-Mouse-10Xv3",
                 col_classes = c(cell_label = "character",
                                 wmb_cluster_alias = "integer")),
@@ -54,6 +60,8 @@
       "cluster_name_cl_info", "neurotransmitter_combined_label")
   ),
   HMBA = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
     cell = list(dir = "HMBA-10xMultiome-BG-Aligned",
                 col_classes = c(cell_label = "character")),
     joins = list(
@@ -67,6 +75,8 @@
       "anatomical_division_label")
   ),
   PMDBS = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
     cell = list(dir = "ASAP-PMDBS-10X", col_classes = c(cell_label = "character")),
     joins = list(
       list(dir = "ASAP-PMDBS-10X", file = "sample", key = "sample_label"),
@@ -172,6 +182,10 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
 
   cols <- intersect(spec$cols_of_interest, colnames(cell_extended))
   unique_values <- lapply(cell_extended[cols], unique)
+
+  attr(cell_extended, "abc_dataset") <- dataset
+  attr(cell_extended, "abc_default_data_type") <- spec$default_data_type
+  attr(cell_extended, "abc_available_data_types") <- spec$available_data_types
 
   list(cell_metadata = cell_extended, gene_data = gene, unique_values = unique_values)
 }
