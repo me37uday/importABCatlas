@@ -264,3 +264,46 @@ test_that("explicit release overrides the last-used manifest", {
     "releases/20250101/manifest.json"
   )
 })
+
+test_that("download progress is enabled by default", {
+  withr::local_options(importABCatlas.download_progress = NULL)
+  expect_true(.abc_download_progress())
+})
+
+test_that("download progress can be disabled by option", {
+  withr::local_options(importABCatlas.download_progress = FALSE)
+  expect_false(.abc_download_progress())
+})
+
+test_that("download progress option is passed to curl", {
+  dir <- withr::local_tempdir()
+  dest <- file.path(dir, "test.bin")
+
+  seen_progress <- NULL
+
+  fake_multi_download <- function(url, destfiles, resume, progress, ...) {
+    seen_progress <<- progress
+    writeBin(as.raw(1:10), destfiles)
+
+    data.frame(
+      success = TRUE,
+      error = NA_character_,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  local_mocked_bindings(
+    multi_download = fake_multi_download,
+    .package = "curl"
+  )
+  withr::local_options(importABCatlas.download_progress = FALSE)
+  .abc_download(
+    "https://example.invalid/test.bin",
+    dest,
+    md5 = NULL,
+    max_tries = 1L
+  )
+
+  expect_false(seen_progress)
+  expect_true(file.exists(dest))
+})

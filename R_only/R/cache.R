@@ -300,6 +300,9 @@ print.abc_cache <- function(x, ...) {
 
 # Download `url` to `dest` through a ".part" file that is resumed across retries
 # and only moved into place once complete (and matching `md5`, if given).
+.abc_download_progress <- function() {
+  isTRUE(getOption("importABCatlas.download_progress", TRUE))
+}
 .abc_download <- function(url, dest, md5 = NULL, max_tries = 10L) {
   dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
   part <- paste0(dest, ".part")
@@ -309,7 +312,7 @@ print.abc_cache <- function(x, ...) {
       url,
       part,
       resume = TRUE,
-      progress = interactive()
+      progress = .abc_download_progress()
     )
 
     # curl::multi_download() catches R interrupts internally. If the
