@@ -255,36 +255,137 @@ print.abc_fetch_plan <- function(x, ...) {
 
 # Resolve the expression files needed for `cells` without downloading them.
 .abc_expression_files <- function(abc_cache, cells, data_type = "raw") {
-  required <- c("dataset_label", "feature_matrix_label")
-  missing <- setdiff(required, names(cells))
-  if (length(missing)) {
-    stop("Cell metadata is missing required column(s): ",
-         paste(missing, collapse = ", "), ".", call. = FALSE)
+  if (!"feature_matrix_label" %in% names(cells)) {
+    stop(
+      "Cell metadata is missing required column: feature_matrix_label.",
+      call. = FALSE
+    )
   }
 
-  files <- unique(cells[, required, drop = FALSE])
-  files <- files[order(files$dataset_label, files$feature_matrix_label,
-                       method = "radix"), , drop = FALSE]
+  matrix_labels <- as.character(cells$feature_matrix_label)
+  if (anyNA(matrix_labels) || any(!nzchar(matrix_labels))) {
+    stop(
+      "Selected cells contain a missing feature_matrix_label.",
+      call. = FALSE
+    )
+  }
 
-  out <- vector("list", nrow(files))
-  for (k in seq_len(nrow(files))) {
-    directory <- as.character(files$dataset_label[k])
-    matrix_file <- as.character(files$feature_matrix_label[k])
-    attrs <- .abc_file_attributes(abc_cache, directory,
-                                  paste0(matrix_file, "/", data_type))
+  expression_dirs <- attr(cells, "abc_expression_directories")
+
+  if (is.null(expression_dirs) || !length(expression_dirs)) {
+    # Backward compatibility for metadata not produced by load_data().
+    # Historically dataset_label directly named the expression directory.
+    if (!"dataset_label" %in% names(cells)) {
+      stop(
+        "Cell metadata has no ABC expression-route provenance and is missing ",
+        "dataset_label. Use metadata returned by load_data(), or provide a ",
+        "dataset_label column for legacy routing.",
+        call. = FALSE
+      )
+    }
+
+    dataset_labels <- as.character(cells$dataset_label)
+    if (anyNA(dataset_labels) || any(!nzchar(dataset_labels))) {
+      stop("Selected cells contain a missing dataset_label.", call. = FALSE)
+    }
+
+    pairs <- unique(data.frame(
+      directory = dataset_labels,
+      feature_matrix_label = matrix_labels,
+      stringsAsFactors = FALSE
+    ))
+  } else {
+    expression_dirs <- unique(as.character(expression_dirs))
+
+    inventory <- do.call(
+      rbind,
+      lapply(
+        expression_dirs,
+        .abc_expression_inventory,
+        cache = abc_cache
+      )
+    )
+
+    inventory <- inventory[
+      inventory$data_type == data_type,
+      ,
+      drop = FALSE
+    ]
+
+    labels <- unique(matrix_labels)
+    pairs <- vector("list", length(labels))
+
+    for (i in seq_along(labels)) {
+      label <- labels[[i]]
+      matches <- inventory[
+        inventory$feature_matrix_label == label,
+        c("directory", "feature_matrix_label"),
+        drop = FALSE
+      ]
+
+      if (nrow(matches) == 0L) {
+        stop(
+          "Cannot route feature_matrix_label='", label,
+          "' for data_type='", data_type,
+          "' within this dataset's expression directories: ",
+          paste(expression_dirs, collapse = ", "),
+          ".",
+          call. = FALSE
+        )
+      }
+
+      if (nrow(matches) > 1L) {
+        choices <- paste(
+          paste0(matches$directory, "/", matches$feature_matrix_label),
+          collapse = ", "
+        )
+        stop(
+          "Ambiguous expression routing for feature_matrix_label='", label,
+          "' and data_type='", data_type, "': ",
+          choices, ".",
+          call. = FALSE
+        )
+      }
+
+      pairs[[i]] <- matches
+    }
+
+    pairs <- do.call(rbind, pairs)
+  }
+
+  pairs <- pairs[
+    order(pairs$directory, pairs$feature_matrix_label, method = "radix"),
+    ,
+    drop = FALSE
+  ]
+
+  out <- vector("list", nrow(pairs))
+
+  for (k in seq_len(nrow(pairs))) {
+    directory <- as.character(pairs$directory[k])
+    matrix_file <- as.character(pairs$feature_matrix_label[k])
+
+    attrs <- .abc_file_attributes(
+      abc_cache,
+      directory,
+      paste0(matrix_file, "/", data_type)
+    )
     part <- paste0(attrs$local_path, ".part")
 
     out[[k]] <- data.frame(
       dataset_label = directory,
       feature_matrix_label = matrix_file,
       data_type = data_type,
-      n_cells = sum(cells$dataset_label == directory &
-                    cells$feature_matrix_label == matrix_file, na.rm = TRUE),
+      n_cells = sum(matrix_labels == matrix_file),
       size = as.numeric(attrs$size),
       relative_path = attrs$relative_path,
       local_path = attrs$local_path,
       cached = file.exists(attrs$local_path),
-      partial_bytes = if (file.exists(part)) as.numeric(file.info(part)$size) else 0,
+      partial_bytes = if (file.exists(part)) {
+        as.numeric(file.info(part)$size)
+      } else {
+        0
+      },
       stringsAsFactors = FALSE
     )
   }

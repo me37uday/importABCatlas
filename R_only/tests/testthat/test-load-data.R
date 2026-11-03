@@ -21,6 +21,23 @@ test_that(".build_dataset assembles cells, taxonomy, ROI colours and genes", {
   expect_match(msgs, "TEST: 4 genes", all = FALSE)
 
   cm <- res$cell_metadata
+
+  expect_identical(attr(cm, "abc_dataset"), "TEST")
+  expect_identical(attr(cm, "abc_default_data_type"), "raw")
+  expect_identical(
+    attr(cm, "abc_available_data_types"),
+    c("raw", "log2")
+  )
+  expect_identical(
+    attr(cm, "abc_expression_directories"),
+    "TEST-10X"
+  )
+  expect_identical(
+    attr(cm, "abc_modality"),
+    "single_cell_transcriptomics"
+  )
+  expect_identical(attr(cm, "abc_spatial"), FALSE)
+
   expect_equal(nrow(cm), 6)
   expect_equal(cm$cell_label, fx$cells$cell_label)
   # Taxonomy columns follow the term-set order; missing terms become "Other".
@@ -50,4 +67,47 @@ test_that("load_data runs end to end on a registered dataset (offline)", {
   ))
   expect_named(res, c("cell_metadata", "gene_data", "unique_values"))
   expect_equal(nrow(res$cell_metadata), 6)
+})
+
+test_that("registered datasets declare expression routing metadata", {
+  allowed_modalities <- c(
+    "single_cell_transcriptomics",
+    "single_nucleus_transcriptomics",
+    "spatial_transcriptomics",
+    "imputed_spatial_transcriptomics",
+    "patch_seq_transcriptomics"
+  )
+
+  for (dataset in names(.abc_datasets)) {
+    spec <- .abc_datasets[[dataset]]
+
+    expect_true(
+      length(spec$expression_directories) >= 1L,
+      info = dataset
+    )
+    expect_true(
+      all(nzchar(spec$expression_directories)),
+      info = dataset
+    )
+    expect_true(
+      spec$modality %in% allowed_modalities,
+      info = dataset
+    )
+    expect_true(
+      is.logical(spec$spatial) && length(spec$spatial) == 1L,
+      info = dataset
+    )
+    expect_true(
+      length(spec$available_data_types) >= 1L,
+      info = dataset
+    )
+    expect_true(
+      all(spec$available_data_types %in% c("raw", "log2")),
+      info = dataset
+    )
+    expect_true(
+      spec$default_data_type %in% spec$available_data_types,
+      info = dataset
+    )
+  }
 })

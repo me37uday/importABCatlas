@@ -20,6 +20,9 @@
   WHB = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
+    expression_directories = "WHB-10Xv3",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
     cell = list(dir = "WHB-10Xv3", col_classes = c(cell_label = "character")),
     taxonomy = "WHB-taxonomy",
     roi = list(dir = "WHB-10Xv3", file = "region_of_interest_structure_map"),
@@ -31,6 +34,10 @@
   WMB = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
+    expression_directories = c("WMB-10Xv2", "WMB-10Xv3",
+                               "WMB-10XMulti"),
+    modality = "single_cell_transcriptomics",
+    spatial = FALSE,
     cell = list(dir = "WMB-10X", col_classes = c(cell_label = "character")),
     taxonomy = "WMB-taxonomy",
     gene = list(dir = "WMB-10X"),
@@ -41,6 +48,9 @@
   AgingMouse = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
+    expression_directories = "Zeng-Aging-Mouse-10Xv3",
+    modality = "single_cell_transcriptomics",
+    spatial = FALSE,
     cell = list(dir = "Zeng-Aging-Mouse-10Xv3",
                 col_classes = c(cell_label = "character",
                                 wmb_cluster_alias = "integer")),
@@ -62,6 +72,9 @@
   HMBA = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
+    expression_directories = "HMBA-10xMultiome-BG-Aligned",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
     cell = list(dir = "HMBA-10xMultiome-BG-Aligned",
                 col_classes = c(cell_label = "character")),
     joins = list(
@@ -77,6 +90,9 @@
   PMDBS = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
+    expression_directories = "ASAP-PMDBS-10X",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
     cell = list(dir = "ASAP-PMDBS-10X", col_classes = c(cell_label = "character")),
     joins = list(
       list(dir = "ASAP-PMDBS-10X", file = "sample", key = "sample_label"),
@@ -186,6 +202,9 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
   attr(cell_extended, "abc_dataset") <- dataset
   attr(cell_extended, "abc_default_data_type") <- spec$default_data_type
   attr(cell_extended, "abc_available_data_types") <- spec$available_data_types
+  attr(cell_extended, "abc_expression_directories") <- spec$expression_directories
+  attr(cell_extended, "abc_modality") <- spec$modality
+  attr(cell_extended, "abc_spatial") <- spec$spatial
 
   list(cell_metadata = cell_extended, gene_data = gene, unique_values = unique_values)
 }

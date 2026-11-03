@@ -267,6 +267,65 @@ print.abc_cache <- function(x, ...) {
        local_path = file.path(cache$download_base, f$relative_path))
 }
 
+# Expression matrix names and representations published for one manifest
+# directory. This inspects the manifest only; it never downloads a file.
+.abc_expression_inventory <- function(cache, directory) {
+  dir_data <- cache$manifest$file_listing[[directory]]
+  if (is.null(dir_data)) {
+    stop(
+      "Directory '", directory, "' not found in manifest ",
+      cache$manifest_name, ".",
+      call. = FALSE
+    )
+  }
+
+  expression <- dir_data[["expression_matrices"]]
+  if (is.null(expression) || !length(expression)) {
+    return(data.frame(
+      directory = character(),
+      feature_matrix_label = character(),
+      data_type = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  out <- list()
+  n <- 0L
+
+  for (matrix_name in names(expression)) {
+    entry <- expression[[matrix_name]]
+
+    # Expression matrices normally have representation subentries such as
+    # raw and log2. Only advertise representations that actually contain a
+    # manifest file record.
+    for (data_type in names(entry)) {
+      if (identical(data_type, "files")) next
+
+      representation <- entry[[data_type]]
+      if (is.null(representation[["files"]])) next
+
+      n <- n + 1L
+      out[[n]] <- data.frame(
+        directory = directory,
+        feature_matrix_label = matrix_name,
+        data_type = data_type,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+
+  if (!length(out)) {
+    return(data.frame(
+      directory = character(),
+      feature_matrix_label = character(),
+      data_type = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  do.call(rbind, out)
+}
+
 # Local path of a manifest file, downloading it first if needed (online only).
 # A file on disk counts as present only if it is recorded as fully downloaded;
 # otherwise it is fetched again, as abc_atlas_access does.

@@ -144,6 +144,9 @@ make_fixture_cache <- function(dir = withr::local_tempdir(.local_envir = parent.
   attr(cells, "abc_dataset") <- "TEST"
   attr(cells, "abc_default_data_type") <- "raw"
   attr(cells, "abc_available_data_types") <- c("raw", "log2")
+  attr(cells, "abc_expression_directories") <- "TEST-10X"
+  attr(cells, "abc_modality") <- "single_cell_transcriptomics"
+  attr(cells, "abc_spatial") <- FALSE
 
   list(
        dir = dir,
@@ -159,6 +162,9 @@ make_fixture_cache <- function(dir = withr::local_tempdir(.local_envir = parent.
 fixture_spec <- list(
   default_data_type = "raw",
   available_data_types = c("raw", "log2"),
+  expression_directories = "TEST-10X",
+  modality = "single_cell_transcriptomics",
+  spatial = FALSE,
   cell = list(dir = "TEST-10X", col_classes = c(cell_label = "character")),
   taxonomy = "TEST-taxonomy",
   roi = list(dir = "TEST-10X", file = "region_of_interest_structure_map"),

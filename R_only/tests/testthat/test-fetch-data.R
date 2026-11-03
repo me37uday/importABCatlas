@@ -419,3 +419,225 @@ test_that("fetch_data uses the route default representation", {
   expect_true("counts" %in% SeuratObject::Layers(obj[["RNA"]]))
   expect_false("data" %in% SeuratObject::Layers(obj[["RNA"]]))
 })
+
+test_that("expression inventory reports published representations", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  inventory <- .abc_expression_inventory(cache, "TEST-10X")
+
+  expect_equal(nrow(inventory), 4L)
+  expect_setequal(
+    paste(
+      inventory$feature_matrix_label,
+      inventory$data_type,
+      sep = "/"
+    ),
+    c(
+      "TEST-A/raw",
+      "TEST-A/log2",
+      "TEST-B/raw",
+      "TEST-B/log2"
+    )
+  )
+})
+
+
+test_that("route provenance overrides legacy dataset_label routing", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells
+  cells$dataset_label <- "NOT-AN-EXPRESSION-DIRECTORY"
+
+  files <- .abc_expression_files(
+    cache,
+    cells,
+    data_type = "raw"
+  )
+
+  expect_equal(
+    files$dataset_label,
+    c("TEST-10X", "TEST-10X")
+  )
+  expect_equal(
+    files$feature_matrix_label,
+    c("TEST-A", "TEST-B")
+  )
+  expect_equal(files$n_cells, c(3L, 3L))
+})
+
+
+test_that("route-aware expression routing rejects unknown matrix labels", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells
+  cells$feature_matrix_label[1] <- "OUTSIDE-ROUTE"
+
+  expect_error(
+    .abc_expression_files(
+      cache,
+      cells,
+      data_type = "raw"
+    ),
+    "Cannot route feature_matrix_label='OUTSIDE-ROUTE'"
+  )
+})
+
+
+test_that("route-aware expression routing rejects missing matrix labels", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells
+  cells$feature_matrix_label[1] <- NA_character_
+
+  expect_error(
+    .abc_expression_files(
+      cache,
+      cells,
+      data_type = "raw"
+    ),
+    "missing feature_matrix_label"
+  )
+})
+
+
+test_that("legacy metadata still routes through dataset_label", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells
+  attr(cells, "abc_expression_directories") <- NULL
+
+  files <- .abc_expression_files(
+    cache,
+    cells,
+    data_type = "raw"
+  )
+
+  expect_equal(
+    files$dataset_label,
+    c("TEST-10X", "TEST-10X")
+  )
+  expect_equal(
+    files$feature_matrix_label,
+    c("TEST-A", "TEST-B")
+  )
+})
+
+test_that("route-aware expression routing rejects ambiguous matrices", {
+  fx <- make_fixture_cache()
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  manifest$file_listing[["TEST-ALT"]] <-
+    manifest$file_listing[["TEST-10X"]]
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells
+  attr(cells, "abc_expression_directories") <-
+    c("TEST-10X", "TEST-ALT")
+
+  expect_error(
+    .abc_expression_files(
+      cache,
+      cells,
+      data_type = "raw"
+    ),
+    "Ambiguous expression routing"
+  )
+})
+
+test_that("expression files outside declared route are not accessible", {
+  fx <- make_fixture_cache()
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  outside <- manifest$file_listing[["TEST-10X"]]
+  names(outside$expression_matrices) <-
+    paste0(
+      names(outside$expression_matrices),
+      "-OUTSIDE"
+    )
+
+  manifest$file_listing[["TEST-OUTSIDE"]] <- outside
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells[1, , drop = FALSE]
+  cells$feature_matrix_label <- "TEST-A-OUTSIDE"
+
+  # TEST-OUTSIDE really contains this matrix, but this route only permits
+  # TEST-10X. Expression discovery must not escape the declared route.
+  expect_error(
+    .abc_expression_files(
+      cache,
+      cells,
+      data_type = "raw"
+    ),
+    "Cannot route feature_matrix_label='TEST-A-OUTSIDE'"
+  )
+})
