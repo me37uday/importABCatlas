@@ -89,3 +89,76 @@ test_that("metadata CSVs are read like pandas.read_csv", {
   expect_equal(df$txt, c("a ", NA, NA))         # whitespace kept, pandas NA strings
   expect_equal(df$num, c(1L, NA, 3L))
 })
+
+test_that("interrupted downloads retain the partial file and are not retried", {
+  dir <- withr::local_tempdir()
+  dest <- file.path(dir, "test.bin")
+  part <- paste0(dest, ".part")
+
+  writeBin(as.raw(1:10), part)
+
+  calls <- 0L
+
+  fake_multi_download <- function(...) {
+    calls <<- calls + 1L
+
+    data.frame(
+      success = NA,
+      error = NA_character_,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  local_mocked_bindings(
+    multi_download = fake_multi_download,
+    .package = "curl"
+  )
+
+  expect_error(
+    .abc_download(
+      "https://example.invalid/test.bin",
+      dest,
+      max_tries = 10L
+    ),
+    "Download interrupted"
+  )
+
+  expect_equal(calls, 1L)
+  expect_true(file.exists(part))
+  expect_false(file.exists(dest))
+})
+
+test_that("failed downloads are retried", {
+  dir <- withr::local_tempdir()
+  dest <- file.path(dir, "test.bin")
+
+  calls <- 0L
+
+  fake_multi_download <- function(...) {
+    calls <<- calls + 1L
+
+    data.frame(
+      success = FALSE,
+      error = "simulated network failure",
+      stringsAsFactors = FALSE
+    )
+  }
+
+  local_mocked_bindings(
+    multi_download = fake_multi_download,
+    .package = "curl"
+  )
+
+  expect_error(
+    suppressMessages(
+      .abc_download(
+        "https://example.invalid/test.bin",
+        dest,
+        max_tries = 3L
+      )
+    ),
+    "3 attempts"
+  )
+
+  expect_equal(calls, 3L)
+})

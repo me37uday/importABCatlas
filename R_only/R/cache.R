@@ -263,21 +263,87 @@ print.abc_cache <- function(x, ...) {
 .abc_download <- function(url, dest, md5 = NULL, max_tries = 10L) {
   dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
   part <- paste0(dest, ".part")
+
   for (i in seq_len(max_tries)) {
-    res <- curl::multi_download(url, part, resume = TRUE, progress = interactive())
+    res <- curl::multi_download(
+      url,
+      part,
+      resume = TRUE,
+      progress = interactive()
+    )
+
+    # curl::multi_download() catches R interrupts internally. If the
+    # transfer is interrupted before either its success or failure
+    # callback runs, `success` remains NA. Do not treat this as a
+    # retryable network failure: retain the partial file and return
+    # control to the user.
+    if (length(res$success) == 1L && is.na(res$success)) {
+      partial_bytes <- if (file.exists(part)) file.info(part)$size else 0
+
+      stop(
+        "Download interrupted. Partial download retained for later resume",
+        if (partial_bytes > 0) {
+          paste0(" (", .abc_format_size(partial_bytes), ")")
+        } else {
+          ""
+        },
+        ".",
+        call. = FALSE
+      )
+    }
+
     ok <- isTRUE(res$success)
+
     if (ok && !is.null(md5) && unname(tools::md5sum(part)) != md5) {
-      message("Checksum mismatch for ", basename(dest), "; downloading again.")
+      message(
+        "Checksum mismatch for ",
+        basename(dest),
+        "; downloading again."
+      )
       unlink(part)
       ok <- FALSE
     }
+
     if (ok) {
-      file.rename(part, dest)
+      if (!file.rename(part, dest)) {
+        stop(
+          "Downloaded file could not be moved into place: ",
+          dest,
+          call. = FALSE
+        )
+      }
       return(invisible(dest))
     }
+
+    if (i < max_tries) {
+      message(
+        "Download attempt ",
+        i,
+        " failed",
+        if (!is.null(res$error) && !is.na(res$error)) {
+          paste0(": ", res$error)
+        } else {
+          ""
+        },
+        ". Retrying from the partial download."
+      )
+    }
   }
-  stop("Could not download ", url, " in ", max_tries, " attempts",
-       if (!is.null(res$error) && !is.na(res$error)) paste0(": ", res$error), ".")
+
+  stop(
+    "Could not download ",
+    url,
+    " in ",
+    max_tries,
+    " attempts",
+    if (!is.null(res$error) && !is.na(res$error)) {
+      paste0(": ", res$error)
+    } else {
+      ""
+    },
+    ".",
+    call. = FALSE
+  )
 }
 
 .abc_format_size <- function(bytes) {
