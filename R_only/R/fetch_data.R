@@ -41,14 +41,15 @@ fetch_data <- function(download_base = NULL,
   prepared <- .abc_prepare_fetch(metadata, filters, gene_data, genes)
   data_type <- .abc_resolve_data_type(data_type, prepared$metadata)
   filtered_meta <- prepared$metadata
-  genes <- prepared$genes
+  selected_gene_data <- prepared$gene_data
 
-  # Fetch gene expression data as a sparse genes x cells matrix
+  # Fetch gene expression data using the full ordered gene universe while
+  # retaining the exact resolved rows and request order.
   expression <- .abc_expression_matrix(
     abc_cache = abc_cache,
     cells = filtered_meta,
     gene_data = gene_data,
-    selected_genes = genes,
+    gene_sel = selected_gene_data$.abc_gene_index,
     data_type = data_type
   )
 
@@ -131,7 +132,7 @@ plan_fetch <- function(download_base = NULL, metadata, filters = list(),
     list(
       data_type = data_type,
       n_cells = nrow(prepared$metadata),
-      n_genes = sum(gene_data$gene_symbol %in% prepared$genes),
+      n_genes = nrow(prepared$gene_data),
       files = files,
       total_size = sum(files$size),
       total_partial = sum(files$partial_bytes),
@@ -226,6 +227,103 @@ print.abc_fetch_plan <- function(x, ...) {
   data_type
 }
 
+# Resolve requested genes against stable identifiers first, then source
+# identifiers when available, and finally symbols. Each request must identify
+# exactly one gene; absent genes are never silently replaced by zero rows.
+.abc_resolve_genes <- function(gene_data, genes = NULL) {
+  if (!"gene_identifier" %in% names(gene_data)) {
+    stop("'gene_identifier' column not found in gene_data.", call. = FALSE)
+  }
+
+  ids <- as.character(gene_data$gene_identifier)
+
+  if (anyNA(ids) || any(!nzchar(ids)) || anyDuplicated(ids)) {
+    stop(
+      "'gene_identifier' must be a non-missing unique key in gene_data.",
+      call. = FALSE
+    )
+  }
+
+  if (is.null(genes)) {
+    out <- gene_data
+    out$.abc_gene_index <- seq_len(nrow(out))
+    rownames(out) <- NULL
+    return(out)
+  }
+
+  query <- as.character(genes)
+
+  if (!length(query) || anyNA(query) || any(!nzchar(query)) ||
+      anyDuplicated(query)) {
+    stop(
+      "genes must be a nonempty vector without duplicate requests.",
+      call. = FALSE
+    )
+  }
+
+  source_ids <- if ("source_gene_identifier" %in% names(gene_data)) {
+    as.character(gene_data$source_gene_identifier)
+  } else {
+    NULL
+  }
+
+  symbols <- if ("gene_symbol" %in% names(gene_data)) {
+    as.character(gene_data$gene_symbol)
+  } else {
+    NULL
+  }
+
+  selected <- integer(length(query))
+
+  for (i in seq_along(query)) {
+    q <- query[[i]]
+
+    matches <- which(ids == q)
+
+    if (!length(matches) && !is.null(source_ids)) {
+      matches <- which(!is.na(source_ids) & source_ids == q)
+    }
+
+    if (!length(matches) && !is.null(symbols)) {
+      matches <- which(!is.na(symbols) & symbols == q)
+    }
+
+    if (!length(matches)) {
+      stop(
+        "Gene '", q, "' was not found.",
+        call. = FALSE
+      )
+    }
+
+    if (length(matches) > 1L) {
+      choices <- utils::head(ids[matches], 8L)
+
+      stop(
+        "Gene '", q,
+        "' is ambiguous. Please use one of these gene identifiers: ",
+        paste(choices, collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+
+    selected[[i]] <- matches[[1L]]
+  }
+
+  out <- gene_data[selected, , drop = FALSE]
+
+  if (anyDuplicated(as.character(out$gene_identifier))) {
+    stop(
+      "Multiple requests resolve to the same gene identifier.",
+      call. = FALSE
+    )
+  }
+
+  out$.abc_gene_index <- selected
+  rownames(out) <- NULL
+  out
+}
+
 # Apply cell filters and resolve the requested genes for a fetch.
 .abc_prepare_fetch <- function(metadata, filters, gene_data, genes = NULL) {
   filtered_meta <- metadata
@@ -243,14 +341,12 @@ print.abc_fetch_plan <- function(x, ...) {
 
   rownames(filtered_meta) <- filtered_meta$cell_label
 
-  if (is.null(genes)) {
-    if (!"gene_symbol" %in% colnames(gene_data)) {
-      stop("'gene_symbol' column not found in gene_data.")
-    }
-    genes <- gene_data$gene_symbol
-  }
+  resolved_genes <- .abc_resolve_genes(gene_data, genes)
 
-  list(metadata = filtered_meta, genes = genes)
+  list(
+    metadata = filtered_meta,
+    gene_data = resolved_genes
+  )
 }
 
 # Resolve the expression files needed for `cells` without downloading them.
@@ -400,9 +496,10 @@ print.abc_fetch_plan <- function(x, ...) {
 # feature_matrix_label); each file is downloaded if needed and read as an
 # on-disk sparse matrix, from which only the requested cells and genes are
 # realized, `block_size` cells at a time. Nothing is ever densified. Rows follow
-# the order of `gene_data` and are named by (made unique) gene symbol; columns
+# the resolved gene request order and are named by (made unique) gene symbol;
+# columns
 # follow the order of `cells`. Cells not found in any file are all-zero columns.
-.abc_expression_matrix <- function(abc_cache, cells, gene_data, selected_genes,
+.abc_expression_matrix <- function(abc_cache, cells, gene_data, gene_sel,
                                    data_type = "raw", block_size = 50000L) {
   # Initialize HDF5Array before the first H5SparseMatrix() construction.
   # Lazy namespace initialization during H5SparseMatrix() can trigger an
@@ -413,7 +510,7 @@ print.abc_fetch_plan <- function(x, ...) {
       call. = FALSE
     )
   }
-  gene_sel <- which(gene_data$gene_symbol %in% selected_genes)
+  gene_sel <- as.integer(gene_sel)
   gene_filtered <- gene_data[gene_sel, , drop = FALSE]
   all_gene_ids <- as.character(gene_data$gene_identifier %||% rownames(gene_data))
   cell_ids <- rownames(cells)

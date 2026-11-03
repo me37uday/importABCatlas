@@ -80,7 +80,14 @@ test_that("expression matrix matches the truth for all cells and genes", {
   cells <- fx$cells
   rownames(cells) <- cells$cell_label
 
-  m <- suppressMessages(.abc_expression_matrix(cache, cells, fx$genes, fx$genes$gene_symbol))
+  m <- suppressMessages(
+    .abc_expression_matrix(
+      cache,
+      cells,
+      fx$genes,
+      seq_len(nrow(fx$genes))
+    )
+  )
   expect_s4_class(m, "dgCMatrix")
   expect_equal(rownames(m), c("Aaa", "Bbb", "Aaa.1", "Ddd"))
   expect_equal(colnames(m), cells$cell_label)
@@ -93,8 +100,15 @@ test_that("gene and cell selection, order and block size are respected", {
   cells <- fx$cells[c(5, 1, 6, 3), ]          # mixed files, not on-disk order
   rownames(cells) <- cells$cell_label
 
-  m <- suppressMessages(.abc_expression_matrix(cache, cells, fx$genes, c("Aaa", "Ddd"),
-                                               block_size = 1L))
+  m <- suppressMessages(
+    .abc_expression_matrix(
+      cache,
+      cells,
+      fx$genes,
+      c(1L, 3L, 4L),
+      block_size = 1L
+    )
+  )
   expect_equal(rownames(m), c("Aaa", "Aaa.1", "Ddd"))
   expect_equal(colnames(m), c("c5", "c1", "c6", "c3"))
   expect_equal(unname(dense(m)), unname(fx$truth[c("G1", "G3", "G4"), c("c5", "c1", "c6", "c3")]))
@@ -106,7 +120,14 @@ test_that("cells absent from their expression file give empty columns", {
   cells <- rbind(fx$cells[1:2, ], transform(fx$cells[1, ], cell_label = "ghost"))
   rownames(cells) <- cells$cell_label
 
-  m <- suppressMessages(.abc_expression_matrix(cache, cells, fx$genes, fx$genes$gene_symbol))
+  m <- suppressMessages(
+    .abc_expression_matrix(
+      cache,
+      cells,
+      fx$genes,
+      seq_len(nrow(fx$genes))
+    )
+  )
   expect_equal(colnames(m), c("c1", "c2", "ghost"))
   expect_equal(sum(m[, "ghost"]), 0)
   expect_equal(unname(dense(m[, 1:2])), unname(fx$truth[, 1:2]))
@@ -118,8 +139,17 @@ test_that("a gene table from another dataset is reported", {
   cells <- fx$cells
   rownames(cells) <- cells$cell_label
   other <- transform(fx$genes, gene_identifier = paste0("X", gene_identifier))
-  expect_error(suppressMessages(.abc_expression_matrix(cache, cells, other, "Aaa")),
-               "missing from")
+  expect_error(
+    suppressMessages(
+      .abc_expression_matrix(
+        cache,
+        cells,
+        other,
+        c(1L, 3L)
+      )
+    ),
+    "missing from"
+  )
 })
 
 test_that("malformed identifiers in the file fall back to positional alignment", {
@@ -131,19 +161,36 @@ test_that("malformed identifiers in the file fall back to positional alignment",
   rownames(cells) <- cells$cell_label
 
   warns <- capture_warnings(
-    m <- suppressMessages(.abc_expression_matrix(cache, cells, fx$genes, "Aaa")))
+    m <- suppressMessages(
+      .abc_expression_matrix(
+        cache,
+        cells,
+        fx$genes,
+        c(1L, 3L)
+      )
+    )
+  )
   expect_length(warns, 2)   # one per expression file
   expect_match(warns, "1 gene identifiers in TEST-[AB]-raw.h5ad are malformed")
   expect_equal(unname(dense(m)), unname(fx$truth[c("G1", "G3"), ]))
   # Genes whose identifiers are intact need no fallback.
-  expect_no_warning(suppressMessages(.abc_expression_matrix(cache, cells, fx$genes, "Ddd")))
+  expect_no_warning(
+    suppressMessages(
+      .abc_expression_matrix(
+        cache,
+        cells,
+        fx$genes,
+        4L
+      )
+    )
+  )
 })
 
 test_that("fetch_data filters cells and returns a Seurat object", {
   fx <- make_fixture_cache()
   obj <- suppressMessages(suppressWarnings(fetch_data(
     download_base = fx$dir, metadata = fx$cells, filters = list(donor_sex = "M"),
-    gene_data = fx$genes, genes = c("Aaa", "Ddd"), offline = TRUE,
+    gene_data = fx$genes, genes = c("G1", "G3", "G4"), offline = TRUE,
     release = fx$version)))
 
   expect_s4_class(obj, "Seurat")
@@ -174,7 +221,7 @@ test_that("plan_fetch reports the request without downloading expression files",
     metadata = fx$cells,
     filters = list(donor_sex = "M"),
     gene_data = fx$genes,
-    genes = c("Aaa", "Ddd"),
+    genes = c("G1", "G3", "G4"),
     offline = TRUE,
     release = fx$version
   )
@@ -205,7 +252,7 @@ test_that("plan_fetch reports remaining bytes without downloading", {
     download_base = fx$dir,
     metadata = fx$cells,
     gene_data = fx$genes,
-    genes = "Aaa",
+    genes = "G1",
     offline = TRUE,
     release = fx$version
   )
@@ -227,7 +274,7 @@ test_that("abc_fetch_plan prints a readable preflight summary", {
     metadata = fx$cells,
     filters = list(donor_sex = "M"),
     gene_data = fx$genes,
-    genes = c("Aaa", "Ddd"),
+    genes = c("G1", "G3", "G4"),
     offline = TRUE,
     release = fx$version
   )
@@ -282,7 +329,7 @@ test_that("plan_fetch routes raw and log2 to the requested representation", {
     download_base = fx$dir,
     metadata = fx$cells,
     gene_data = fx$genes,
-    genes = "Aaa",
+    genes = "G1",
     data_type = "raw",
     offline = TRUE,
     release = fx$version
@@ -292,7 +339,7 @@ test_that("plan_fetch routes raw and log2 to the requested representation", {
     download_base = fx$dir,
     metadata = fx$cells,
     gene_data = fx$genes,
-    genes = "Aaa",
+    genes = "G1",
     data_type = "log2",
     offline = TRUE,
     release = fx$version
@@ -323,7 +370,7 @@ test_that("expression matrix reads log2 representation without transforming it",
       abc_cache = cache,
       cells = cells,
       gene_data = fx$genes,
-      selected_genes = fx$genes$gene_symbol,
+      gene_sel = seq_len(nrow(fx$genes)),
       data_type = "log2"
     )
   )
@@ -344,7 +391,7 @@ test_that("fetch_data stores raw expression in the counts layer", {
       download_base = fx$dir,
       metadata = fx$cells,
       gene_data = fx$genes,
-      genes = c("Aaa", "Ddd"),
+      genes = c("G1", "G3", "G4"),
       data_type = "raw",
       offline = TRUE,
       release = fx$version
@@ -372,7 +419,7 @@ test_that("fetch_data stores log2 expression in the data layer", {
         download_base = fx$dir,
         metadata = fx$cells,
         gene_data = fx$genes,
-        genes = c("Aaa", "Ddd"),
+        genes = c("G1", "G3", "G4"),
         data_type = "log2",
         offline = TRUE,
         release = fx$version
@@ -640,4 +687,139 @@ test_that("expression files outside declared route are not accessible", {
     ),
     "Cannot route feature_matrix_label='TEST-A-OUTSIDE'"
   )
+})
+
+test_that("gene resolution accepts identifiers and unique symbols automatically", {
+  fx <- make_fixture_cache()
+
+  by_id <- .abc_resolve_genes(
+    fx$genes,
+    c("G4", "G2")
+  )
+
+  expect_identical(
+    as.character(by_id$gene_identifier),
+    c("G4", "G2")
+  )
+  expect_identical(
+    by_id$.abc_gene_index,
+    c(4L, 2L)
+  )
+
+  by_symbol <- .abc_resolve_genes(
+    fx$genes,
+    c("Ddd", "Bbb")
+  )
+
+  expect_identical(
+    as.character(by_symbol$gene_identifier),
+    c("G4", "G2")
+  )
+  expect_identical(
+    by_symbol$.abc_gene_index,
+    c(4L, 2L)
+  )
+})
+
+test_that("gene resolution explains ambiguous and missing genes", {
+  fx <- make_fixture_cache()
+
+  expect_error(
+    .abc_resolve_genes(fx$genes, "Aaa"),
+    "G1, G3"
+  )
+
+  expect_error(
+    .abc_resolve_genes(fx$genes, "NOT-A-GENE"),
+    "Gene 'NOT-A-GENE' was not found",
+    fixed = TRUE
+  )
+})
+
+test_that("gene resolution rejects duplicate requests", {
+  fx <- make_fixture_cache()
+
+  expect_error(
+    .abc_resolve_genes(
+      fx$genes,
+      c("G2", "G2")
+    ),
+    "without duplicate requests"
+  )
+})
+
+test_that("different gene names cannot resolve to the same feature twice", {
+  fx <- make_fixture_cache()
+
+  expect_error(
+    .abc_resolve_genes(
+      fx$genes,
+      c("G2", "Bbb")
+    ),
+    "same gene identifier"
+  )
+})
+
+test_that("gene resolution supports source identifiers when available", {
+  fx <- make_fixture_cache()
+
+  genes <- fx$genes
+  genes$source_gene_identifier <- c(
+    "SRC1",
+    "SRC2",
+    "SRC3",
+    "SRC4"
+  )
+
+  out <- .abc_resolve_genes(
+    genes,
+    c("SRC3", "SRC1")
+  )
+
+  expect_identical(
+    as.character(out$gene_identifier),
+    c("G3", "G1")
+  )
+  expect_identical(
+    out$.abc_gene_index,
+    c(3L, 1L)
+  )
+})
+
+test_that("fetch_data accepts gene identifiers without extra user options", {
+  fx <- make_fixture_cache()
+
+  obj <- fetch_data(
+    download_base = fx$dir,
+    metadata = fx$cells[1:3, , drop = FALSE],
+    gene_data = fx$genes,
+    genes = c("G4", "G2"),
+    offline = TRUE,
+    release = fx$version
+  )
+
+  expect_identical(
+    rownames(obj),
+    c("Ddd", "Bbb")
+  )
+  expect_identical(
+    colnames(obj),
+    c("c1", "c2", "c3")
+  )
+})
+
+test_that("plan_fetch counts resolved identifiers like symbols", {
+  fx <- make_fixture_cache()
+
+  plan <- plan_fetch(
+    download_base = fx$dir,
+    metadata = fx$cells[1:3, , drop = FALSE],
+    gene_data = fx$genes,
+    genes = c("G4", "G2"),
+    offline = TRUE,
+    release = fx$version
+  )
+
+  expect_identical(plan$n_genes, 2L)
+  expect_identical(plan$n_cells, 3L)
 })
