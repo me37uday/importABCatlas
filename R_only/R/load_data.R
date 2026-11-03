@@ -118,8 +118,8 @@
       list(dir = "ASAP-PMDBS-10X", file = "sample", key = "sample_label"),
       list(dir = "ASAP-PMDBS-10X", file = "donor", key = "donor_label")
     ),
-    # NOTE: gene annotation points at WHB-10Xv3, mirroring the original code.
-    gene = list(dir = "WHB-10Xv3"),
+    # PMDBS expression matrices use the native 36601-gene human gene universe.
+    gene = list(dir = "ASAP-PMDBS-10X"),
     cols_of_interest = c("source_dataset_label", "region_of_interest_label",
       "donor_race", "donor_sex", "primary_diagnosis", "age_at_death",
       "apoe4_status", "braak_stage", "cerad_score", "cognitive_status")

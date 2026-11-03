@@ -545,3 +545,15 @@ test_that("sequential annotation joins preserve authoritative columns and proven
 
   expect_equal(out$cell_label, c("c1", "c2", "c3"))
 })
+
+test_that("PMDBS uses its native gene universe", {
+  expect_identical(
+    .abc_datasets$PMDBS$gene$dir,
+    "ASAP-PMDBS-10X"
+  )
+
+  expect_identical(
+    .abc_datasets$PMDBS$gene$file %||% "gene",
+    "gene"
+  )
+})
