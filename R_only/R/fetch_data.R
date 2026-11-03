@@ -80,6 +80,15 @@ fetch_data <- function(download_base = NULL,
 # follow the order of `cells`. Cells not found in any file are all-zero columns.
 .abc_expression_matrix <- function(abc_cache, cells, gene_data, selected_genes,
                                    data_type = "raw", block_size = 50000L) {
+  # Initialize HDF5Array before the first H5SparseMatrix() construction.
+  # Lazy namespace initialization during H5SparseMatrix() can trigger an
+  # R protection-stack imbalance warning with this dependency stack.
+  if (!requireNamespace("HDF5Array", quietly = TRUE)) {
+    stop(
+      "Package 'HDF5Array' is required to read expression matrices.",
+      call. = FALSE
+    )
+  }
   gene_sel <- which(gene_data$gene_symbol %in% selected_genes)
   gene_filtered <- gene_data[gene_sel, , drop = FALSE]
   all_gene_ids <- as.character(gene_data$gene_identifier %||% rownames(gene_data))
