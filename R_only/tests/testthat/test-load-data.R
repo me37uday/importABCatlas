@@ -470,3 +470,78 @@ test_that("taxonomy rejects conflicting annotations for one hierarchy level", {
     "conflicting cluster annotations"
   )
 })
+
+test_that("sequential annotation joins preserve authoritative columns and provenance", {
+  cells <- data.frame(
+    cell_label = c("c1", "c2", "c3"),
+    cluster_alias = c("10", "20", "30"),
+    wmb_cluster_alias = c(100L, 200L, NA_integer_),
+    stringsAsFactors = FALSE
+  )
+
+  native <- data.frame(
+    cell_label = c("c1", "c2", "c3"),
+    cluster_alias = c("10", "20", "30"),
+    cluster_name = c("native-1", "native-2", "native-3"),
+    cluster_color = c("#111111", "#222222", "#333333"),
+    stringsAsFactors = FALSE
+  )
+
+  cross <- data.frame(
+    cell_label = c("c1", "c2"),
+    cluster_alias = c("10", "20"),
+    cluster_name = c("native-1", "native-2"),
+    cluster_color = c("#111111", "#222222"),
+    wmb_cluster_alias = c(100L, 200L),
+    wmb_cluster_name = c("wmb-1", "wmb-2"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_safe_join(
+    cells,
+    native,
+    "cell_label",
+    "cell_cluster_annotations"
+  )
+
+  out <- .abc_safe_join(
+    out,
+    cross,
+    "cell_label",
+    "cell_cross_mapping_annotations"
+  )
+
+  expect_equal(out$cluster_alias, c("10", "20", "30"))
+
+  expect_equal(
+    out$cluster_alias__cell_cluster_annotations,
+    c("10", "20", "30")
+  )
+
+  expect_equal(
+    out$cluster_name,
+    c("native-1", "native-2", "native-3")
+  )
+
+  expect_equal(
+    out$cluster_name__cell_cross_mapping_annotations,
+    c("native-1", "native-2", NA)
+  )
+
+  expect_equal(
+    out$wmb_cluster_alias,
+    c(100L, 200L, NA_integer_)
+  )
+
+  expect_equal(
+    out$wmb_cluster_alias__cell_cross_mapping_annotations,
+    c(100L, 200L, NA_integer_)
+  )
+
+  expect_equal(
+    out$wmb_cluster_name,
+    c("wmb-1", "wmb-2", NA)
+  )
+
+  expect_equal(out$cell_label, c("c1", "c2", "c3"))
+})

@@ -54,20 +54,36 @@
     cell = list(dir = "Zeng-Aging-Mouse-10Xv3",
                 col_classes = c(cell_label = "character",
                                 wmb_cluster_alias = "integer")),
+    # Match the validated Python-reticulate annotation path: native Aging
+    # annotations define cluster identity and age bias, while the separate
+    # mapping directory contributes the optional WMB reference mapping.
     joins = list(
-      list(dir = "Zeng-Aging-Mouse-WMB-taxonomy",
-           file = "cell_cluster_mapping_annotations",
-           key = "cell_label", suffix = c("", "_cl_map")),
-      list(dir = "Zeng-Aging-Mouse-10Xv3", file = "cell_annotation_colors",
-           key = "cell_label", suffix = c("", "_cl_colors")),
-      list(dir = "Zeng-Aging-Mouse-10Xv3", file = "cluster",
-           key = "cluster_alias", suffix = c("", "_cl_info"))
+      list(
+        dir = "Zeng-Aging-Mouse-10Xv3",
+        file = "cell_cluster_annotations",
+        key = "cell_label"
+      ),
+      list(
+        dir = "Zeng-Aging-Mouse-WMB-taxonomy",
+        file = "cell_cross_mapping_annotations",
+        key = "cell_label"
+      )
     ),
     # No gene table of its own: the expression matrix uses the WMB 10X gene
     # set (same 32285 genes, same order).
     gene = list(dir = "WMB-10X"),
-    cols_of_interest = c("anatomical_division_label", "donor_sex", "donor_age",
-      "cluster_name_cl_info", "neurotransmitter_combined_label")
+    cols_of_interest = c(
+      "anatomical_division_label",
+      "donor_sex",
+      "donor_age",
+      "cluster_name",
+      "cluster_age_bias",
+      "neurotransmitter_combined_label",
+      "wmb_class_name",
+      "wmb_subclass_name",
+      "wmb_supertype_name",
+      "wmb_cluster_name"
+    )
   ),
   HMBA = list(
     default_data_type = "raw",
@@ -79,8 +95,12 @@
                 col_classes = c(cell_label = "character")),
     joins = list(
       list(dir = "HMBA-10xMultiome-BG-Aligned", file = "donor", key = "donor_label"),
-      list(dir = "HMBA-10xMultiome-BG-Aligned", file = "library",
-           key = "library_label", suffix = c("", "_library_table"))
+      list(
+        dir = "HMBA-10xMultiome-BG-Aligned",
+        file = "library",
+        key = "library_label",
+        column_suffix = "_library_table"
+      )
     ),
     gene = list(dir = "HMBA-10xMultiome-BG-Aligned"),
     cols_of_interest = c("species_scientific_name", "species_common_name",
@@ -292,11 +312,19 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
                                       by = "region_of_interest_label")
   }
 
-  # Simple left-joins, applied in order onto the accumulating table.
+  # Metadata joins are many-to-one onto cells. Keep the existing cell-side
+  # columns authoritative and give overlapping annotation columns explicit
+  # provenance-bearing suffixes rather than allowing a join to multiply cells.
   for (j in spec$joins %||% list()) {
     aux <- get_df(j$dir, j$file)
-    cell_extended <- dplyr::left_join(cell_extended, aux, by = j$key,
-                                      suffix = j$suffix %||% c("", ""))
+
+    cell_extended <- .abc_safe_join(
+      cell_extended,
+      aux,
+      j$key,
+      j$file,
+      column_suffix = j$column_suffix %||% paste0("__", j$file)
+    )
   }
 
   gene <- get_df(spec$gene$dir, spec$gene$file %||% "gene")
