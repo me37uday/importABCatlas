@@ -1,5 +1,79 @@
 dense <- function(m) as.matrix(m)
 
+test_that("expression file planning matches cell routing without downloading", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  files <- .abc_expression_files(
+    cache,
+    fx$cells,
+    data_type = "raw"
+  )
+
+  expect_equal(
+    files$feature_matrix_label,
+    c("TEST-A", "TEST-B")
+  )
+
+  expect_equal(files$n_cells, c(3, 3))
+  expect_true(all(files$data_type == "raw"))
+  expect_true(all(files$size > 0))
+  expect_true(all(files$cached))
+  expect_equal(files$partial_bytes, c(0, 0))
+})
+
+test_that("expression file planning reports resumable partial bytes", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  attrs <- .abc_file_attributes(
+    cache,
+    "TEST-10X",
+    "TEST-A/raw"
+  )
+
+  part <- paste0(attrs$local_path, ".part")
+  writeBin(as.raw(1:10), part)
+
+  files <- .abc_expression_files(
+    cache,
+    fx$cells,
+    data_type = "raw"
+  )
+
+  expect_equal(
+    files$partial_bytes[
+      files$feature_matrix_label == "TEST-A"
+    ],
+    10
+  )
+})
+
+test_that("expression file planning validates routing columns", {
+  fx <- make_fixture_cache()
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  bad <- fx$cells
+  bad$feature_matrix_label <- NULL
+
+  expect_error(
+    .abc_expression_files(cache, bad),
+    "feature_matrix_label"
+  )
+})
+
 test_that("expression matrix matches the truth for all cells and genes", {
   fx <- make_fixture_cache()
   cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
@@ -90,4 +164,77 @@ test_that("fetch_data validates filters", {
                           filters = list(donor_sex = "X"), gene_data = fx$genes,
                           offline = TRUE, release = fx$version),
                "No cells left")
+})
+
+test_that("plan_fetch reports the request without downloading expression files", {
+  fx <- make_fixture_cache()
+
+  plan <- plan_fetch(
+    download_base = fx$dir,
+    metadata = fx$cells,
+    filters = list(donor_sex = "M"),
+    gene_data = fx$genes,
+    genes = c("Aaa", "Ddd"),
+    offline = TRUE,
+    release = fx$version
+  )
+
+  expect_s3_class(plan, "abc_fetch_plan")
+  expect_equal(plan$data_type, "raw")
+  expect_equal(plan$n_cells, 3)
+  expect_equal(plan$n_genes, 3)
+  expect_equal(plan$release, fx$version)
+  expect_equal(plan$files$feature_matrix_label, c("TEST-A", "TEST-B"))
+  expect_equal(plan$files$n_cells, c(2, 1))
+  expect_equal(plan$total_download, 0)
+})
+
+test_that("plan_fetch reports remaining bytes without downloading", {
+  fx <- make_fixture_cache()
+
+  cache <- abc_cache_connect(fx$dir, offline = TRUE, release = fx$version)
+  attrs <- .abc_file_attributes(cache, "TEST-10X", "TEST-A/raw")
+
+  unlink(attrs$local_path)
+  part <- paste0(attrs$local_path, ".part")
+  writeBin(as.raw(1:10), part)
+
+  size_before <- file.info(part)$size
+
+  plan <- plan_fetch(
+    download_base = fx$dir,
+    metadata = fx$cells,
+    gene_data = fx$genes,
+    genes = "Aaa",
+    offline = TRUE,
+    release = fx$version
+  )
+
+  row <- plan$files[plan$files$feature_matrix_label == "TEST-A", ]
+
+  expect_false(row$cached)
+  expect_equal(row$partial_bytes, 10)
+  expect_equal(row$additional_download, row$size - 10)
+  expect_equal(file.info(part)$size, size_before)
+  expect_false(file.exists(attrs$local_path))
+})
+
+test_that("abc_fetch_plan prints a readable preflight summary", {
+  fx <- make_fixture_cache()
+
+  plan <- plan_fetch(
+    download_base = fx$dir,
+    metadata = fx$cells,
+    filters = list(donor_sex = "M"),
+    gene_data = fx$genes,
+    genes = c("Aaa", "Ddd"),
+    offline = TRUE,
+    release = fx$version
+  )
+
+  expect_output(print(plan), "<abc_fetch_plan>")
+  expect_output(print(plan), "3 genes x 3 cells")
+  expect_output(print(plan), "TEST-10X/TEST-A/raw")
+  expect_output(print(plan), "additional download")
+  expect_output(print(plan), "No expression files were downloaded")
 })

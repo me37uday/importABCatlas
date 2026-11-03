@@ -4,7 +4,12 @@
 \alias{load_data}
 \title{Load assembled cell metadata for an ABC Atlas dataset}
 \usage{
-load_data(dataset, download_base = NULL, offline = FALSE)
+load_data(
+  dataset,
+  download_base = NULL,
+  offline = FALSE,
+  release = .abc_default_release
+)
 }
 \arguments{
 \item{dataset}{Dataset name. One of \code{"WHB"}, \code{"WMB"},
@@ -16,6 +21,9 @@ If \code{NULL} (default), it is resolved by \code{\link{abc_download_dir}}.}
 
 \item{offline}{If \code{TRUE}, use only locally cached data and never contact
 S3 (see \code{\link{abc_cache_connect}}).}
+
+\item{release}{Optional ABC Atlas release version in \code{YYYYMMDD} form.
+When supplied, metadata are loaded from exactly that release.}
 }
 \value{
 A list with \code{cell_metadata}, \code{gene_data}, and

@@ -11,7 +11,8 @@ fetch_data(
   gene_data,
   genes = NULL,
   assay_name = "RNA",
-  offline = FALSE
+  offline = FALSE,
+  release = .abc_default_release
 )
 }
 \arguments{
@@ -33,6 +34,10 @@ columns, typically the \code{gene_data} element returned by \code{\link[=load_da
 
 \item{offline}{If \code{TRUE}, use only locally cached expression data and never
 contact S3 (see \code{\link[=abc_cache_connect]{abc_cache_connect()}}).}
+
+\item{release}{Optional ABC Atlas release version in \code{YYYYMMDD} form.
+Defaults to the release validated against this package. Advanced users may
+supply another release explicitly.}
 }
 \value{
 A Seurat object containing the filtered cells and gene expression data.

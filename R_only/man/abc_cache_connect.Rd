@@ -4,7 +4,11 @@
 \alias{abc_cache_connect}
 \title{Connect to the ABC Atlas project cache}
 \usage{
-abc_cache_connect(download_base = NULL, offline = FALSE)
+abc_cache_connect(
+  download_base = NULL,
+  offline = FALSE,
+  release = .abc_default_release
+)
 }
 \arguments{
 \item{download_base}{Download/cache directory; resolved by
@@ -12,6 +16,11 @@ abc_cache_connect(download_base = NULL, offline = FALSE)
 
 \item{offline}{If \code{TRUE}, use only locally cached data and never contact
 S3. Requires a manifest to have been downloaded previously.}
+
+\item{release}{Optional ABC Atlas release version in \code{YYYYMMDD} form,
+for example \code{"20260711"}. When supplied, exactly that release is used.
+When \code{NULL}, the previously used/latest manifest selection behavior is
+preserved.}
 }
 \value{
 An \code{abc_cache} object: a list with the \code{download_base},
