@@ -557,3 +557,74 @@ test_that("PMDBS uses its native gene universe", {
     "gene"
   )
 })
+
+test_that("Batch 1 transcriptomic routes declare reference-compatible sources", {
+  aibs <- .abc_datasets$ConsensusMouseAIBS
+
+  expect_identical(
+    aibs$cell$dir,
+    "Consensus-WMB-AIBS-10X"
+  )
+  expect_identical(
+    aibs$gene$dir,
+    "WMB-10X"
+  )
+  expect_identical(
+    aibs$taxonomy,
+    "Consensus-WMB-integrated-taxonomy"
+  )
+  expect_identical(
+    aibs$expression_directories,
+    c("WMB-10Xv2", "WMB-10Xv3", "WMB-10XMulti")
+  )
+  expect_identical(
+    aibs$modality,
+    "single_cell_transcriptomics"
+  )
+
+  macosko <- .abc_datasets$ConsensusMouseMacosko
+
+  expect_identical(
+    macosko$cell$dir,
+    "Consensus-WMB-Macosko-10X"
+  )
+  expect_identical(
+    macosko$gene$dir,
+    "Consensus-WMB-Macosko-10X"
+  )
+  expect_identical(
+    macosko$taxonomy,
+    "Consensus-WMB-integrated-taxonomy"
+  )
+  expect_identical(
+    macosko$expression_directories,
+    "Consensus-WMB-Macosko-10X"
+  )
+  expect_identical(
+    macosko$modality,
+    "single_nucleus_transcriptomics"
+  )
+
+  developing <- .abc_datasets$DevelopingMouse
+
+  expect_identical(
+    developing$cell$dir,
+    "Developing-Mouse-Vis-Cortex-10X"
+  )
+  expect_identical(
+    developing$gene$dir,
+    "Developing-Mouse-Vis-Cortex-10X"
+  )
+  expect_identical(
+    developing$taxonomy,
+    "Developing-Mouse-Vis-Cortex-taxonomy"
+  )
+  expect_identical(
+    developing$expression_directories,
+    "Developing-Mouse-Vis-Cortex-10X"
+  )
+  expect_identical(
+    developing$modality,
+    "single_cell_transcriptomics"
+  )
+})

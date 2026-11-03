@@ -45,6 +45,55 @@
       "region_of_interest_acronym", "donor_sex", "class", "subclass",
       "supertype", "cluster", "neurotransmitter")
   ),
+  ConsensusMouseAIBS = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = c(
+      "WMB-10Xv2",
+      "WMB-10Xv3",
+      "WMB-10XMulti"
+    ),
+    modality = "single_cell_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "Consensus-WMB-AIBS-10X",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "Consensus-WMB-integrated-taxonomy",
+    gene = list(dir = "WMB-10X"),
+    cols_of_interest = character()
+  ),
+
+  ConsensusMouseMacosko = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "Consensus-WMB-Macosko-10X",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "Consensus-WMB-Macosko-10X",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "Consensus-WMB-integrated-taxonomy",
+    gene = list(dir = "Consensus-WMB-Macosko-10X"),
+    cols_of_interest = character()
+  ),
+
+  DevelopingMouse = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "Developing-Mouse-Vis-Cortex-10X",
+    modality = "single_cell_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "Developing-Mouse-Vis-Cortex-10X",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "Developing-Mouse-Vis-Cortex-taxonomy",
+    gene = list(dir = "Developing-Mouse-Vis-Cortex-10X"),
+    cols_of_interest = c("synchronized_age")
+  ),
+
   AgingMouse = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
