@@ -267,6 +267,16 @@ print.abc_cache <- function(x, ...) {
        local_path = file.path(cache$download_base, f$relative_path))
 }
 
+# TRUE when a metadata table is published for a manifest directory.
+# This inspects the manifest only and never downloads the table.
+.abc_metadata_exists <- function(cache, directory, file) {
+  dir_data <- cache$manifest$file_listing[[directory]]
+  if (is.null(dir_data)) return(FALSE)
+
+  metadata <- dir_data[["metadata"]]
+  !is.null(metadata) && !is.null(metadata[[file]])
+}
+
 # Expression matrix names and representations published for one manifest
 # directory. This inspects the manifest only; it never downloads a file.
 .abc_expression_inventory <- function(cache, directory) {

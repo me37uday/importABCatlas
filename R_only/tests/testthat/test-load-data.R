@@ -111,3 +111,362 @@ test_that("registered datasets declare expression routing metadata", {
     )
   }
 })
+
+test_that("taxonomy membership supplies the authoritative cluster alias", {
+  fx <- make_fixture_cache()
+
+  # Add cell_to_cluster_membership to the taxonomy directory. Deliberately
+  # reverse the fixture's original aliases so the test proves that membership,
+  # rather than cell_metadata$cluster_alias, drives taxonomy annotation.
+  membership <- data.frame(
+    cell_label = fx$cells$cell_label,
+    cluster_alias = ifelse(fx$cells$cluster_alias == 1L, "2", "1"),
+    stringsAsFactors = FALSE
+  )
+
+  rel <- file.path(
+    "metadata",
+    "TEST-taxonomy",
+    fx$version,
+    "cell_to_cluster_membership.csv"
+  )
+  path <- file.path(fx$dir, rel)
+
+  utils::write.csv(
+    membership,
+    path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  entry <- list(
+    version = fx$version,
+    relative_path = rel,
+    url = paste0("https://example.invalid/", rel),
+    size = file.size(path),
+    file_hash = unname(tools::md5sum(path))
+  )
+
+  manifest$file_listing[["TEST-taxonomy"]][["metadata"]][["cell_to_cluster_membership"]] <- list(
+    files = stats::setNames(list(entry), tools::file_ext(rel))
+  )
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  res <- suppressMessages(
+    .build_dataset(
+      fixture_spec,
+      cache,
+      "TEST"
+    )
+  )
+
+  cm <- res$cell_metadata
+
+  expect_equal(nrow(cm), nrow(fx$cells))
+  expect_equal(cm$cell_label, fx$cells$cell_label)
+
+  # Existing aliases are retained for provenance.
+  expect_equal(
+    cm$cluster_alias_original,
+    as.character(fx$cells$cluster_alias)
+  )
+
+  # Membership is authoritative.
+  expect_equal(
+    cm$cluster_alias,
+    membership$cluster_alias
+  )
+
+  # Taxonomy annotations follow the authoritative membership alias.
+  expect_equal(
+    cm$cluster,
+    c("cl2", "cl1", "cl2", "cl1", "cl1", "cl2")
+  )
+  expect_equal(
+    cm$supercluster,
+    c("Other", "sup1", "Other", "sup1", "sup1", "Other")
+  )
+})
+
+test_that("safe metadata joins reject duplicate right-hand keys", {
+  left <- data.frame(
+    cell_label = c("c1", "c2"),
+    value = c(1, 2)
+  )
+
+  right <- data.frame(
+    cell_label = c("c1", "c1"),
+    annotation = c("A", "B")
+  )
+
+  expect_error(
+    .abc_safe_join(
+      left,
+      right,
+      "cell_label",
+      "membership"
+    ),
+    "right-hand cell_label is not a non-missing unique key"
+  )
+})
+
+test_that("taxonomy prefers an upstream pivoted annotation view", {
+  fx <- make_fixture_cache()
+
+  pivoted <- data.frame(
+    cluster_alias = c("1", "2"),
+    supercluster = c("pivot_sup1", "pivot_sup2"),
+    cluster = c("pivot_cl1", "pivot_cl2"),
+    stringsAsFactors = FALSE
+  )
+
+  rel <- file.path(
+    "metadata",
+    "TEST-taxonomy",
+    fx$version,
+    "cluster_to_cluster_annotation_membership_pivoted.csv"
+  )
+  path <- file.path(fx$dir, rel)
+
+  utils::write.csv(
+    pivoted,
+    path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  entry <- list(
+    version = fx$version,
+    relative_path = rel,
+    url = paste0("https://example.invalid/", rel),
+    size = file.size(path),
+    file_hash = unname(tools::md5sum(path))
+  )
+
+  manifest$file_listing[["TEST-taxonomy"]][["metadata"]][["cluster_to_cluster_annotation_membership_pivoted"]] <- list(
+    files = stats::setNames(list(entry), tools::file_ext(rel))
+  )
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  tax <- .build_taxonomy(cache, "TEST-taxonomy")
+
+  expect_equal(
+    tax$cluster_details$cluster_alias,
+    c("1", "2")
+  )
+  expect_equal(
+    tax$cluster_details$supercluster,
+    c("pivot_sup1", "pivot_sup2")
+  )
+  expect_equal(
+    tax$cluster_details$cluster,
+    c("pivot_cl1", "pivot_cl2")
+  )
+
+  # Colours still come from the long membership table.
+  expect_equal(
+    tax$cluster_colors$cluster,
+    c("#aa0000", "#cc0000")
+  )
+})
+
+test_that("taxonomy reconstructs names from term tables when membership has labels only", {
+  fx <- make_fixture_cache()
+
+  membership_rel <- file.path(
+    "metadata",
+    "TEST-taxonomy",
+    fx$version,
+    "cluster_to_cluster_annotation_membership.csv"
+  )
+  membership_path <- file.path(fx$dir, membership_rel)
+
+  membership <- utils::read.csv(
+    membership_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  # Replace embedded names with stable labels, matching taxonomy releases
+  # where human-readable names must be recovered from the term tables.
+  membership$cluster_annotation_term_label <- c("T1", "T2", "T3", "T4")
+  membership$cluster_annotation_term_set_label <- c("L2", "L1", "L2", "L1")
+
+  membership$cluster_annotation_term_name <- NULL
+  membership$cluster_annotation_term_set_name <- NULL
+
+  utils::write.csv(
+    membership,
+    membership_path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  term <- data.frame(
+    label = c("T1", "T2", "T3", "T4"),
+    name = c("cl1", "sup1", "cl2", NA),
+    stringsAsFactors = FALSE
+  )
+
+  term_rel <- file.path(
+    "metadata",
+    "TEST-taxonomy",
+    fx$version,
+    "cluster_annotation_term.csv"
+  )
+  term_path <- file.path(fx$dir, term_rel)
+
+  utils::write.csv(
+    term,
+    term_path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  # The existing membership file changed, so refresh its manifest metadata.
+  membership_entry <-
+    manifest$file_listing[["TEST-taxonomy"]][["metadata"]][["cluster_to_cluster_annotation_membership"]][["files"]][["csv"]]
+
+  membership_entry$size <- file.size(membership_path)
+  membership_entry$file_hash <-
+    unname(tools::md5sum(membership_path))
+
+  manifest$file_listing[["TEST-taxonomy"]][["metadata"]][["cluster_to_cluster_annotation_membership"]][["files"]][["csv"]] <- membership_entry
+
+  term_entry <- list(
+    version = fx$version,
+    relative_path = term_rel,
+    url = paste0("https://example.invalid/", term_rel),
+    size = file.size(term_path),
+    file_hash = unname(tools::md5sum(term_path))
+  )
+
+  manifest$file_listing[["TEST-taxonomy"]][["metadata"]][["cluster_annotation_term"]] <- list(
+    files = stats::setNames(list(term_entry), tools::file_ext(term_rel))
+  )
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  tax <- .build_taxonomy(cache, "TEST-taxonomy")
+
+  expect_equal(
+    tax$cluster_details$cluster,
+    c("cl1", "cl2")
+  )
+  expect_equal(
+    tax$cluster_details$supercluster,
+    c("sup1", "Other")
+  )
+  expect_equal(
+    tax$cluster_colors$cluster,
+    c("#aa0000", "#cc0000")
+  )
+})
+
+test_that("taxonomy rejects conflicting annotations for one hierarchy level", {
+  fx <- make_fixture_cache()
+
+  rel <- file.path(
+    "metadata",
+    "TEST-taxonomy",
+    fx$version,
+    "cluster_to_cluster_annotation_membership.csv"
+  )
+  path <- file.path(fx$dir, rel)
+
+  membership <- utils::read.csv(
+    path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  conflict <- membership[1, , drop = FALSE]
+  conflict$cluster_annotation_term_name <- "different-cluster"
+  membership <- rbind(membership, conflict)
+
+  utils::write.csv(
+    membership,
+    path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  expect_error(
+    .build_taxonomy(cache, "TEST-taxonomy"),
+    "conflicting cluster annotations"
+  )
+})

@@ -152,6 +152,52 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
 
 # ---- Generic builder --------------------------------------------------------
 
+# Left many-to-one metadata join that preserves cell count and row order.
+# Annotation tables must have a non-missing unique join key; otherwise joining
+# them could silently duplicate cells.
+.abc_safe_join <- function(left, right, key, suffix = "annotation",
+                           column_suffix = paste0("__", suffix)) {
+  if (!key %in% names(left) || !key %in% names(right)) {
+    stop(suffix, ": join key ", key, " missing.", call. = FALSE)
+  }
+
+  left[[key]] <- as.character(left[[key]])
+  right[[key]] <- as.character(right[[key]])
+  right <- unique(right)
+
+  if (anyNA(right[[key]]) || anyDuplicated(right[[key]])) {
+    stop(
+      suffix, ": right-hand ", key,
+      " is not a non-missing unique key; join would multiply cells.",
+      call. = FALSE
+    )
+  }
+
+  n_before <- nrow(left)
+  left$.abc_join_order <- seq_len(n_before)
+
+  overlap <- setdiff(intersect(names(left), names(right)), key)
+  if (length(overlap)) {
+    replacement <- paste0(overlap, column_suffix)
+
+    if (any(replacement %in% union(names(left), names(right)))) {
+      stop(suffix, ": ambiguous annotation column suffix.", call. = FALSE)
+    }
+
+    names(right)[match(overlap, names(right))] <- replacement
+  }
+
+  out <- dplyr::left_join(left, right, by = key)
+  out <- out[order(out$.abc_join_order), , drop = FALSE]
+  out$.abc_join_order <- NULL
+
+  if (nrow(out) != n_before) {
+    stop("Join changed the number of cells.", call. = FALSE)
+  }
+
+  out
+}
+
 # Turn a dataset spec into the assembled list(cell_metadata, gene_data,
 # unique_values). All dataset-specific behaviour comes from `spec`.
 .build_dataset <- function(spec, abc_cache, dataset = "") {
@@ -165,14 +211,75 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
   message(dataset, ": ", nrow(cell), " cells")
   cell_extended <- cell
 
-  # Taxonomy reshape + join on cluster_alias (WHB / WMB).
+  # Taxonomy annotation. Some routes already carry cluster_alias in their
+  # cell table; others publish authoritative cell_to_cluster_membership in
+  # either the route directory or taxonomy directory.
   if (!is.null(spec$taxonomy)) {
+    membership_dir <- NULL
+
+    for (candidate in c(spec$cell$dir, spec$taxonomy)) {
+      if (.abc_metadata_exists(
+        abc_cache,
+        candidate,
+        "cell_to_cluster_membership"
+      )) {
+        membership_dir <- candidate
+        break
+      }
+    }
+
+    if (!is.null(membership_dir)) {
+      membership <- get_df(
+        membership_dir,
+        "cell_to_cluster_membership"
+      )
+
+      if ("cluster_alias" %in% names(cell_extended)) {
+        names(cell_extended)[
+          names(cell_extended) == "cluster_alias"
+        ] <- "cluster_alias_original"
+
+        cell_extended$cluster_alias_original <-
+          as.character(cell_extended$cluster_alias_original)
+      }
+
+      cell_extended <- .abc_safe_join(
+        cell_extended,
+        membership,
+        "cell_label",
+        "membership"
+      )
+    }
+
+    if (!"cluster_alias" %in% names(cell_extended)) {
+      stop(
+        spec$cell$dir,
+        ": no cluster_alias or applicable membership table.",
+        call. = FALSE
+      )
+    }
+
+    cell_extended$cluster_alias <-
+      as.character(cell_extended$cluster_alias)
+
     tax <- .build_taxonomy(abc_cache, spec$taxonomy)
-    cell_extended$cluster_alias <- as.character(cell_extended$cluster_alias)
-    cell_extended <- dplyr::left_join(cell_extended, tax$cluster_details,
-                                      by = "cluster_alias")
-    cell_extended <- dplyr::left_join(cell_extended, tax$cluster_colors,
-                                      by = "cluster_alias", suffix = c("", "_color"))
+
+    cell_extended <- .abc_safe_join(
+      cell_extended,
+      tax$cluster_details,
+      "cluster_alias",
+      "taxonomy"
+    )
+
+    if (!is.null(tax$cluster_colors)) {
+      cell_extended <- .abc_safe_join(
+        cell_extended,
+        tax$cluster_colors,
+        "cluster_alias",
+        "taxonomy_color",
+        column_suffix = "_color"
+      )
+    }
   }
 
   # Region-of-interest colour join (WHB).
@@ -213,29 +320,243 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
 # directory's membership + term-set tables, keyed by cluster_alias. Shared by
 # every dataset that declares a `taxonomy` (currently WHB and WMB).
 .build_taxonomy <- function(abc_cache, taxonomy_dir) {
-  membership <- abc_cache$get_metadata_dataframe(
-    directory = taxonomy_dir, file_name = "cluster_to_cluster_annotation_membership")
-  term_sets <- abc_cache$get_metadata_dataframe(
-    directory = taxonomy_dir, file_name = "cluster_annotation_term_set")
-
-  widen <- function(value_col) {
-    agg <- stats::aggregate(
-      stats::as.formula(paste(value_col,
-                              "~ cluster_alias + cluster_annotation_term_set_name")),
-      data = membership, FUN = function(x) x[1])
-    w <- stats::reshape(agg, idvar = "cluster_alias",
-                        timevar = "cluster_annotation_term_set_name",
-                        direction = "wide")
-    colnames(w) <- gsub(paste0(value_col, "."), "", colnames(w), fixed = TRUE)
-    # Keep the real cluster_alias column plus the term-set columns, in order.
-    w <- w[, c("cluster_alias", term_sets$name), drop = FALSE]
-    w$cluster_alias <- as.character(w$cluster_alias)
-    w
+  get_df <- function(file) {
+    abc_cache$get_metadata_dataframe(
+      directory = taxonomy_dir,
+      file_name = file
+    )
   }
 
-  cluster_details <- widen("cluster_annotation_term_name")
-  cluster_details[is.na(cluster_details)] <- "Other"
-  cluster_colors <- widen("color_hex_triplet")
+  has <- function(file) {
+    .abc_metadata_exists(abc_cache, taxonomy_dir, file)
+  }
 
-  list(cluster_details = cluster_details, cluster_colors = cluster_colors)
+  validate_alias <- function(x, source) {
+    if (!"cluster_alias" %in% names(x)) {
+      stop(
+        taxonomy_dir, ": ", source, " is missing cluster_alias.",
+        call. = FALSE
+      )
+    }
+
+    x$cluster_alias <- as.character(x$cluster_alias)
+
+    if (anyNA(x$cluster_alias) || anyDuplicated(x$cluster_alias)) {
+      stop(
+        taxonomy_dir, ": ", source,
+        " does not have a non-missing unique cluster_alias.",
+        call. = FALSE
+      )
+    }
+
+    x
+  }
+
+  # Load the long membership when available. It is required for taxonomy
+  # colours and is the fallback source for annotation names when no upstream
+  # pivoted view is published.
+  membership <- NULL
+
+  if (has("cluster_to_cluster_annotation_membership")) {
+    membership <- get_df("cluster_to_cluster_annotation_membership")
+
+    # Some taxonomy releases store only term labels in the membership table.
+    # Recover human-readable names from the accompanying term tables, matching
+    # the validated Python backend rather than inventing annotations.
+    if (!"cluster_annotation_term_name" %in% names(membership)) {
+      if (!has("cluster_annotation_term")) {
+        stop(
+          taxonomy_dir,
+          ": term names absent and no term table available.",
+          call. = FALSE
+        )
+      }
+
+      term <- get_df("cluster_annotation_term")
+      names(term)[names(term) == "label"] <-
+        "cluster_annotation_term_label"
+      names(term)[names(term) == "name"] <-
+        "cluster_annotation_term_name"
+
+      membership <- .abc_safe_join(
+        membership,
+        term[, c(
+          "cluster_annotation_term_label",
+          "cluster_annotation_term_name"
+        ), drop = FALSE],
+        "cluster_annotation_term_label",
+        "term"
+      )
+    }
+
+    if (!"cluster_annotation_term_set_name" %in% names(membership)) {
+      if (!has("cluster_annotation_term_set")) {
+        stop(
+          taxonomy_dir,
+          ": term-set names absent and no term-set table available.",
+          call. = FALSE
+        )
+      }
+
+      term_sets <- get_df("cluster_annotation_term_set")
+      names(term_sets)[names(term_sets) == "label"] <-
+        "cluster_annotation_term_set_label"
+      names(term_sets)[names(term_sets) == "name"] <-
+        "cluster_annotation_term_set_name"
+
+      membership <- .abc_safe_join(
+        membership,
+        term_sets[, c(
+          "cluster_annotation_term_set_label",
+          "cluster_annotation_term_set_name"
+        ), drop = FALSE],
+        "cluster_annotation_term_set_label",
+        "termset"
+      )
+    }
+
+    required <- c(
+      "cluster_alias",
+      "cluster_annotation_term_set_name",
+      "cluster_annotation_term_name"
+    )
+
+    missing <- setdiff(required, names(membership))
+    if (length(missing)) {
+      stop(
+        taxonomy_dir, ": missing taxonomy field(s): ",
+        paste(missing, collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+
+    membership$cluster_alias <- as.character(membership$cluster_alias)
+
+    if (
+      anyNA(membership$cluster_alias) ||
+      anyNA(membership$cluster_annotation_term_set_name)
+    ) {
+      stop(taxonomy_dir, ": missing taxonomy keys.", call. = FALSE)
+    }
+
+    # One cluster may have only one annotation within a given term set.
+    key <- paste(
+      membership$cluster_alias,
+      membership$cluster_annotation_term_set_name,
+      sep = "\r"
+    )
+
+    conflicts <- tapply(
+      membership$cluster_annotation_term_name,
+      key,
+      function(x) length(unique(x)) > 1L
+    )
+
+    if (any(conflicts)) {
+      stop(
+        taxonomy_dir, ": conflicting cluster annotations.",
+        call. = FALSE
+      )
+    }
+  }
+
+  # Prefer Allen's already-pivoted taxonomy view when one is published.
+  if (has("cluster_to_cluster_annotation_membership_pivoted")) {
+    cluster_details <- validate_alias(
+      get_df("cluster_to_cluster_annotation_membership_pivoted"),
+      "pivoted taxonomy"
+    )
+  } else {
+    if (is.null(membership)) {
+      stop(
+        taxonomy_dir, ": taxonomy membership file missing.",
+        call. = FALSE
+      )
+    }
+
+    detail <- unique(membership[, c(
+      "cluster_alias",
+      "cluster_annotation_term_set_name",
+      "cluster_annotation_term_name"
+    )])
+
+    cluster_details <- stats::reshape(
+      detail,
+      idvar = "cluster_alias",
+      timevar = "cluster_annotation_term_set_name",
+      direction = "wide"
+    )
+
+    names(cluster_details) <- sub(
+      "^cluster_annotation_term_name\\.",
+      "",
+      names(cluster_details)
+    )
+
+    cluster_details <- validate_alias(
+      cluster_details,
+      "taxonomy annotations"
+    )
+  }
+
+  # Preserve the established R-only convention that absent hierarchy levels
+  # are represented as "Other".
+  detail_cols <- setdiff(names(cluster_details), "cluster_alias")
+  for (column in detail_cols) {
+    cluster_details[[column]][is.na(cluster_details[[column]])] <- "Other"
+  }
+
+  cluster_colors <- NULL
+
+  if (!is.null(membership) &&
+      "color_hex_triplet" %in% names(membership)) {
+    color <- unique(membership[, c(
+      "cluster_alias",
+      "cluster_annotation_term_set_name",
+      "color_hex_triplet"
+    )])
+
+    color_key <- paste(
+      color$cluster_alias,
+      color$cluster_annotation_term_set_name,
+      sep = "\r"
+    )
+
+    color_conflicts <- tapply(
+      color$color_hex_triplet,
+      color_key,
+      function(x) length(unique(x[!is.na(x)])) > 1L
+    )
+
+    if (any(color_conflicts)) {
+      stop(
+        taxonomy_dir, ": conflicting taxonomy colours.",
+        call. = FALSE
+      )
+    }
+
+    cluster_colors <- stats::reshape(
+      color,
+      idvar = "cluster_alias",
+      timevar = "cluster_annotation_term_set_name",
+      direction = "wide"
+    )
+
+    names(cluster_colors) <- sub(
+      "^color_hex_triplet\\.",
+      "",
+      names(cluster_colors)
+    )
+
+    cluster_colors <- validate_alias(
+      cluster_colors,
+      "taxonomy colours"
+    )
+  }
+
+  list(
+    cluster_details = cluster_details,
+    cluster_colors = cluster_colors
+  )
 }
