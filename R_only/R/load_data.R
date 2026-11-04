@@ -255,6 +255,63 @@
     )
   ),
 
+  MERFISH = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "MERFISH-C57BL6J-638850",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "MERFISH-C57BL6J-638850",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "WMB-taxonomy",
+    gene = list(dir = "MERFISH-C57BL6J-638850"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "donor_sex",
+      "donor_genotype",
+      "x",
+      "y",
+      "z",
+      "class",
+      "subclass",
+      "supertype",
+      "cluster",
+      "neurotransmitter"
+    )
+  ),
+
+  MERFISH_imputed = list(
+    default_data_type = "log2",
+    available_data_types = "log2",
+    expression_directories = "MERFISH-C57BL6J-638850-imputed",
+    expression_matrix_map = c(
+      "C57BL6J-638850" = "C57BL6J-638850-imputed"
+    ),
+    modality = "imputed_spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "MERFISH-C57BL6J-638850",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "WMB-taxonomy",
+    gene = list(dir = "WMB-10X"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "donor_sex",
+      "donor_genotype",
+      "x",
+      "y",
+      "z",
+      "class",
+      "subclass",
+      "supertype",
+      "cluster",
+      "neurotransmitter"
+    )
+  ),
+
   SEAAD_Multiregion = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
@@ -742,6 +799,7 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
   attr(cell_extended, "abc_default_data_type") <- spec$default_data_type
   attr(cell_extended, "abc_available_data_types") <- spec$available_data_types
   attr(cell_extended, "abc_expression_directories") <- spec$expression_directories
+  attr(cell_extended, "abc_expression_matrix_map") <- spec$expression_matrix_map
   attr(cell_extended, "abc_modality") <- spec$modality
   attr(cell_extended, "abc_spatial") <- spec$spatial
 

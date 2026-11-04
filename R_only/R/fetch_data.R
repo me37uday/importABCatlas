@@ -366,6 +366,38 @@ print.abc_fetch_plan <- function(x, ...) {
     )
   }
 
+  # Some logical routes reuse cell metadata from one published dataset while
+  # expression is published under a differently named feature matrix. Preserve
+  # the published metadata column and translate labels only for internal
+  # expression routing.
+  matrix_map <- attr(cells, "abc_expression_matrix_map")
+
+  if (!is.null(matrix_map) && length(matrix_map)) {
+    map_names <- names(matrix_map)
+    matrix_map <- stats::setNames(
+      as.character(matrix_map),
+      map_names
+    )
+
+    if (
+      is.null(map_names) ||
+      anyNA(map_names) ||
+      any(!nzchar(map_names)) ||
+      anyDuplicated(map_names) ||
+      anyNA(matrix_map) ||
+      any(!nzchar(matrix_map))
+    ) {
+      stop(
+        "Invalid ABC expression-matrix mapping provenance.",
+        call. = FALSE
+      )
+    }
+
+    mapped <- unname(matrix_map[matrix_labels])
+    use_map <- !is.na(mapped)
+    matrix_labels[use_map] <- mapped[use_map]
+  }
+
   expression_dirs <- attr(cells, "abc_expression_directories")
 
   if (is.null(expression_dirs) || !length(expression_dirs)) {

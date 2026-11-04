@@ -1089,3 +1089,55 @@ test_that("standard metadata auto-joins attach available route annotations", {
 
   expect_equal(nrow(cm), 6L)
 })
+
+test_that("MERFISH routes declare measured and imputed expression correctly", {
+  measured <- .abc_datasets$MERFISH
+
+  expect_identical(
+    measured$cell$dir,
+    "MERFISH-C57BL6J-638850"
+  )
+  expect_identical(
+    measured$gene$dir,
+    "MERFISH-C57BL6J-638850"
+  )
+  expect_identical(
+    measured$expression_directories,
+    "MERFISH-C57BL6J-638850"
+  )
+  expect_identical(measured$taxonomy, "WMB-taxonomy")
+  expect_identical(measured$default_data_type, "raw")
+  expect_identical(
+    measured$available_data_types,
+    c("raw", "log2")
+  )
+  expect_identical(
+    measured$modality,
+    "spatial_transcriptomics"
+  )
+  expect_true(measured$spatial)
+
+  imputed <- .abc_datasets$MERFISH_imputed
+
+  expect_identical(
+    imputed$cell$dir,
+    "MERFISH-C57BL6J-638850"
+  )
+  expect_identical(imputed$gene$dir, "WMB-10X")
+  expect_identical(
+    imputed$expression_directories,
+    "MERFISH-C57BL6J-638850-imputed"
+  )
+  expect_identical(
+    imputed$expression_matrix_map,
+    c("C57BL6J-638850" = "C57BL6J-638850-imputed")
+  )
+  expect_identical(imputed$taxonomy, "WMB-taxonomy")
+  expect_identical(imputed$default_data_type, "log2")
+  expect_identical(imputed$available_data_types, "log2")
+  expect_identical(
+    imputed$modality,
+    "imputed_spatial_transcriptomics"
+  )
+  expect_true(imputed$spatial)
+})

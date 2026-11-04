@@ -968,3 +968,43 @@ test_that("expression matrix aligns normalized duplicate genes to H5AD occurrenc
     fx$cells$cell_label
   )
 })
+
+test_that("expression routing can map published cell labels to another matrix", {
+  fx <- make_fixture_cache()
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  cells <- fx$cells[1:3, , drop = FALSE]
+
+  published <- as.character(cells$feature_matrix_label)
+
+  # Route TEST-A cells internally to TEST-B while preserving the published
+  # feature_matrix_label column itself.
+  attr(cells, "abc_expression_directories") <- "TEST-10X"
+  attr(cells, "abc_expression_matrix_map") <- c(
+    "TEST-A" = "TEST-B"
+  )
+
+  files <- .abc_expression_files(
+    cache,
+    cells,
+    data_type = "raw"
+  )
+
+  expect_identical(
+    as.character(cells$feature_matrix_label),
+    published
+  )
+
+  expect_false("TEST-A" %in% files$feature_matrix_label)
+  expect_true("TEST-B" %in% files$feature_matrix_label)
+
+  expect_equal(
+    sum(files$n_cells),
+    nrow(cells)
+  )
+})
