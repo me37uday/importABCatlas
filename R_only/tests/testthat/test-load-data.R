@@ -1141,3 +1141,43 @@ test_that("MERFISH routes declare measured and imputed expression correctly", {
   )
   expect_true(imputed$spatial)
 })
+
+test_that("Zhuang spatial routes declare native sources", {
+  expected <- c(
+    Zhuang1 = "Zhuang-ABCA-1",
+    Zhuang2 = "Zhuang-ABCA-2",
+    Zhuang3 = "Zhuang-ABCA-3",
+    Zhuang4 = "Zhuang-ABCA-4"
+  )
+
+  for (route in names(expected)) {
+    directory <- unname(expected[[route]])
+    spec <- .abc_datasets[[route]]
+
+    expect_identical(spec$cell$dir, directory)
+    expect_identical(spec$gene$dir, directory)
+    expect_identical(
+      spec$expression_directories,
+      directory
+    )
+    expect_identical(spec$taxonomy, "WMB-taxonomy")
+
+    expect_identical(
+      spec$default_data_type,
+      "raw"
+    )
+    expect_identical(
+      spec$available_data_types,
+      c("raw", "log2")
+    )
+    expect_identical(
+      spec$modality,
+      "spatial_transcriptomics"
+    )
+    expect_true(spec$spatial)
+
+    # These routes already publish x/y/z in cell_metadata;
+    # no separate spatial metadata join is required.
+    expect_null(spec$joins)
+  }
+})

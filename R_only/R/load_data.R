@@ -255,6 +255,114 @@
     )
   ),
 
+  Zhuang1 = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "Zhuang-ABCA-1",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "Zhuang-ABCA-1",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "WMB-taxonomy",
+    gene = list(dir = "Zhuang-ABCA-1"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "donor_sex",
+      "donor_genotype",
+      "x", "y", "z",
+      "subclass",
+      "supertype",
+      "cluster",
+      "neurotransmitter",
+      "subclass_confidence_score",
+      "cluster_confidence_score",
+      "high_quality_transfer"
+    )
+  ),
+
+  Zhuang2 = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "Zhuang-ABCA-2",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "Zhuang-ABCA-2",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "WMB-taxonomy",
+    gene = list(dir = "Zhuang-ABCA-2"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "donor_sex",
+      "donor_genotype",
+      "x", "y", "z",
+      "subclass",
+      "supertype",
+      "cluster",
+      "neurotransmitter",
+      "subclass_confidence_score",
+      "cluster_confidence_score",
+      "high_quality_transfer"
+    )
+  ),
+
+  Zhuang3 = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "Zhuang-ABCA-3",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "Zhuang-ABCA-3",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "WMB-taxonomy",
+    gene = list(dir = "Zhuang-ABCA-3"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "donor_sex",
+      "donor_genotype",
+      "x", "y", "z",
+      "subclass",
+      "supertype",
+      "cluster",
+      "neurotransmitter",
+      "subclass_confidence_score",
+      "cluster_confidence_score",
+      "high_quality_transfer"
+    )
+  ),
+
+  Zhuang4 = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "Zhuang-ABCA-4",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "Zhuang-ABCA-4",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "WMB-taxonomy",
+    gene = list(dir = "Zhuang-ABCA-4"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "donor_sex",
+      "donor_genotype",
+      "x", "y", "z",
+      "subclass",
+      "supertype",
+      "cluster",
+      "neurotransmitter",
+      "subclass_confidence_score",
+      "cluster_confidence_score",
+      "high_quality_transfer"
+    )
+  ),
+
   MERFISH = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
