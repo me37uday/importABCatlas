@@ -512,7 +512,6 @@ print.abc_fetch_plan <- function(x, ...) {
   }
   gene_sel <- as.integer(gene_sel)
   gene_filtered <- gene_data[gene_sel, , drop = FALSE]
-  all_gene_ids <- as.character(gene_data$gene_identifier %||% rownames(gene_data))
   cell_ids <- rownames(cells)
 
   files <- .abc_expression_files(abc_cache, cells, data_type = data_type)
@@ -524,8 +523,12 @@ print.abc_fetch_plan <- function(x, ...) {
 
     path <- abc_cache$get_file_path(directory = files$dataset_label[k],
                                     file_name = paste0(matrix_file, "/", data_type))
-    gene_pos <- .abc_gene_positions(all_gene_ids, gene_sel,
-                                    .h5ad_index(path, "var"), basename(path))
+    gene_pos <- .abc_gene_positions(
+      gene_data,
+      gene_sel,
+      .h5ad_index(path, "var"),
+      basename(path)
+    )
     file_pos <- match(cell_ids, .h5ad_index(path, "obs"))
     wanted <- which(!is.na(file_pos))
     wanted <- wanted[order(file_pos[wanted])]  # read cells in on-disk order
@@ -549,29 +552,117 @@ print.abc_fetch_plan <- function(x, ...) {
   )
 }
 
-# Positions in an expression file's var index of the genes `ids[sel]`, where
-# `ids` are all gene identifiers of gene_data. Genes are matched by identifier.
+# Positions in an expression file's var index for selected gene metadata rows.
+# Canonical gene_identifier is preferred. For normalized duplicate source IDs,
+# occurrence metadata permits one-to-one alignment only when the H5AD contains
+# exactly the expected number of source-ID occurrences. No aggregation or
+# arbitrary duplicate selection is allowed.
+#
 # Some ABC Atlas files store malformed identifiers for a few genes: in
 # Zeng-Aging-Mouse-10Xv3, genes with a duplicated symbol have a printed pandas
-# Series (embedding the real identifier) instead. When every identifier in the
-# file either equals or embeds the gene_data identifier at the same position,
-# genes are aligned by position instead, as abc_atlas_access does.
-.abc_gene_positions <- function(ids, sel, var, file) {
+# Series embedding the real identifier. The existing positional fallback for
+# that published-data defect is retained after ordinary identifier matching.
+.abc_gene_positions <- function(gene_data, sel, var, file) {
+  sel <- as.integer(sel)
+
+  ids <- as.character(
+    gene_data$gene_identifier %||% rownames(gene_data)
+  )
+
   pos <- match(ids[sel], var)
-  if (!anyNA(pos)) return(pos)
+  unresolved <- which(is.na(pos))
+
+  if (!length(unresolved)) {
+    return(pos)
+  }
+
+  has_source <- all(
+    c(
+      "source_gene_identifier",
+      "source_gene_occurrence",
+      "source_gene_group_size"
+    ) %in% names(gene_data)
+  )
+
+  if (has_source) {
+    for (j in unresolved) {
+      row <- sel[[j]]
+
+      source <- as.character(
+        gene_data$source_gene_identifier[[row]]
+      )
+      occurrence <- as.integer(
+        gene_data$source_gene_occurrence[[row]]
+      )
+      group_size <- as.integer(
+        gene_data$source_gene_group_size[[row]]
+      )
+
+      if (
+        is.na(source) ||
+        !nzchar(source) ||
+        is.na(occurrence) ||
+        occurrence < 1L ||
+        is.na(group_size) ||
+        group_size < 1L
+      ) {
+        next
+      }
+
+      hits <- which(var == source)
+
+      if (length(hits) == 1L && group_size == 1L) {
+        pos[[j]] <- hits[[1L]]
+        next
+      }
+
+      if (
+        group_size > 1L &&
+        length(hits) == group_size &&
+        occurrence <= length(hits)
+      ) {
+        pos[[j]] <- hits[[occurrence]]
+      }
+    }
+  }
+
+  if (!anyNA(pos)) {
+    return(pos)
+  }
+
+  # Preserve the existing AgingMouse compatibility fallback.
   if (length(var) == length(ids)) {
     bad <- which(var != ids)
-    if (all(mapply(grepl, ids[bad], var[bad], fixed = TRUE))) {
-      warning(length(bad), " gene identifiers in ", file, " are malformed; ",
-              "genes were aligned by position.", call. = FALSE)
+
+    if (
+      length(bad) &&
+      all(mapply(
+        grepl,
+        ids[bad],
+        var[bad],
+        MoreArgs = list(fixed = TRUE)
+      ))
+    ) {
+      warning(
+        length(bad),
+        " gene identifiers in ",
+        file,
+        " are malformed; genes were aligned by position.",
+        call. = FALSE
+      )
       return(sel)
     }
   }
-  stop(sum(is.na(pos)), " of the selected genes are missing from ", file,
-       "; is gene_data from the same dataset?")
+
+  stop(
+    sum(is.na(pos)),
+    " of the selected genes are missing from ",
+    file,
+    "; is gene_data from the same dataset?",
+    call. = FALSE
+  )
 }
 
-# Row names of an h5ad's obs or var dataframe (the column named by `_index`).
 .h5ad_index <- function(path, group) {
   index_col <- rhdf5::h5readAttributes(path, paste0("/", group))[["_index"]]
   if (is.null(index_col)) {

@@ -628,3 +628,71 @@ test_that("Batch 1 transcriptomic routes declare reference-compatible sources", 
     "single_cell_transcriptomics"
   )
 })
+
+test_that("gene normalization leaves unique identifiers unchanged", {
+  gene <- data.frame(
+    gene_identifier = c("G1", "G2", "G3"),
+    gene_symbol = c("A", "B", "C"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_normalize_gene_metadata(gene)
+
+  expect_s3_class(out, "data.frame")
+  expect_identical(out$gene_identifier, c("G1", "G2", "G3"))
+  expect_false("source_gene_identifier" %in% names(out))
+})
+
+test_that("gene normalization preserves duplicate source occurrence", {
+  gene <- data.frame(
+    gene_identifier = c("G1", "G2", "G1", "G1"),
+    gene_symbol = c("A1", "B", "A2", "A3"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_normalize_gene_metadata(gene)
+
+  expect_s3_class(out, "data.frame")
+  expect_identical(
+    out$gene_identifier,
+    c("G1.iabdup1", "G2", "G1.iabdup2", "G1.iabdup3")
+  )
+  expect_identical(
+    out$source_gene_identifier,
+    c("G1", "G2", "G1", "G1")
+  )
+  expect_identical(
+    out$source_gene_occurrence,
+    c(1L, 1L, 2L, 3L)
+  )
+  expect_identical(
+    out$source_gene_group_size,
+    c(3L, 1L, 3L, 3L)
+  )
+  expect_identical(anyDuplicated(out$gene_identifier), 0L)
+})
+
+test_that("gene normalization avoids collisions with published identifiers", {
+  gene <- data.frame(
+    gene_identifier = c("G1", "G1.iabdup1", "G1"),
+    gene_symbol = c("A1", "existing", "A2"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_normalize_gene_metadata(gene)
+
+  expect_s3_class(out, "data.frame")
+  expect_identical(
+    out$gene_identifier,
+    c("G1.iabdup2", "G1.iabdup1", "G1.iabdup3")
+  )
+  expect_identical(
+    out$source_gene_occurrence,
+    c(1L, 1L, 2L)
+  )
+  expect_identical(
+    out$source_gene_group_size,
+    c(2L, 1L, 2L)
+  )
+  expect_identical(anyDuplicated(out$gene_identifier), 0L)
+})

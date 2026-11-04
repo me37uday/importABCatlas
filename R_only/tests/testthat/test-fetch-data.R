@@ -823,3 +823,148 @@ test_that("plan_fetch counts resolved identifiers like symbols", {
   expect_identical(plan$n_genes, 2L)
   expect_identical(plan$n_cells, 3L)
 })
+
+test_that("duplicate source genes align to H5AD occurrences one-to-one", {
+  gene <- data.frame(
+    gene_identifier = c(
+      "G1.iabdup1",
+      "G2",
+      "G1.iabdup2"
+    ),
+    source_gene_identifier = c("G1", "G2", "G1"),
+    source_gene_occurrence = c(1L, 1L, 2L),
+    source_gene_group_size = c(2L, 1L, 2L),
+    stringsAsFactors = FALSE
+  )
+
+  expect_identical(
+    .abc_gene_positions(
+      gene,
+      c(1L, 3L, 2L),
+      c("G1", "G2", "G1"),
+      "duplicate.h5ad"
+    ),
+    c(1L, 3L, 2L)
+  )
+})
+
+test_that("duplicate source alignment rejects mismatched H5AD group sizes", {
+  gene <- data.frame(
+    gene_identifier = c(
+      "G1.iabdup1",
+      "G1.iabdup2"
+    ),
+    source_gene_identifier = c("G1", "G1"),
+    source_gene_occurrence = c(1L, 2L),
+    source_gene_group_size = c(2L, 2L),
+    stringsAsFactors = FALSE
+  )
+
+  expect_error(
+    .abc_gene_positions(
+      gene,
+      c(1L, 2L),
+      c("G1", "G1", "G1"),
+      "bad-duplicate.h5ad"
+    ),
+    "selected genes are missing"
+  )
+})
+
+test_that("canonical H5AD identifiers remain preferred", {
+  gene <- data.frame(
+    gene_identifier = c(
+      "G1.iabdup1",
+      "G1.iabdup2"
+    ),
+    source_gene_identifier = c("G1", "G1"),
+    source_gene_occurrence = c(1L, 2L),
+    source_gene_group_size = c(2L, 2L),
+    stringsAsFactors = FALSE
+  )
+
+  expect_identical(
+    .abc_gene_positions(
+      gene,
+      c(2L, 1L),
+      c("G1.iabdup1", "G1.iabdup2"),
+      "canonical.h5ad"
+    ),
+    c(2L, 1L)
+  )
+})
+
+test_that("expression matrix aligns normalized duplicate genes to H5AD occurrences", {
+  fx <- make_fixture_cache(
+    var_ids = c("G1", "G2", "G1", "G4")
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  # Model the real Macaque condition: metadata and H5AD both publish a
+  # duplicated stable identifier before metadata normalization.
+  source_genes <- fx$genes
+  source_genes$gene_identifier <- c("G1", "G2", "G1", "G4")
+
+  genes <- .abc_normalize_gene_metadata(source_genes)
+
+  expect_identical(
+    genes$gene_identifier,
+    c("G1.iabdup1", "G2", "G1.iabdup2", "G4")
+  )
+
+  expect_identical(
+    genes$source_gene_identifier,
+    c("G1", "G2", "G1", "G4")
+  )
+
+  expect_identical(
+    genes$source_gene_occurrence,
+    c(1L, 1L, 2L, 1L)
+  )
+
+  expect_identical(
+    genes$source_gene_group_size,
+    c(2L, 1L, 2L, 1L)
+  )
+
+  cells <- fx$cells
+  rownames(cells) <- cells$cell_label
+
+  m <- suppressMessages(
+    .abc_expression_matrix(
+      cache,
+      cells,
+      genes,
+      c(3L, 1L, 4L)
+    )
+  )
+
+  expect_s4_class(m, "dgCMatrix")
+
+  # Metadata rows 3, 1 and 4 must resolve to H5AD occurrences 3, 1 and 4.
+  expect_equal(
+    unname(dense(m)),
+    unname(
+      fx$truth[
+        c("G3", "G1", "G4"),
+        ,
+        drop = FALSE
+      ]
+    )
+  )
+
+  expect_equal(
+    rownames(m),
+    c("Aaa", "Aaa.1", "Ddd")
+  )
+
+  expect_equal(
+    colnames(m),
+    fx$cells$cell_label
+  )
+})

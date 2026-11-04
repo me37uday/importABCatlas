@@ -267,6 +267,93 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
   out
 }
 
+# Make published gene identifiers unique without dropping or aggregating
+# features. Duplicate source IDs retain their original identity and occurrence
+# so expression readers can reconcile them one-to-one against the H5AD axis.
+.abc_normalize_gene_metadata <- function(gene, context = "gene metadata") {
+  if (!"gene_identifier" %in% names(gene)) {
+    stop(
+      context, ": required column 'gene_identifier' missing.",
+      call. = FALSE
+    )
+  }
+
+  out <- gene
+  original <- as.character(out$gene_identifier)
+
+  if (anyNA(original) || any(!nzchar(original))) {
+    stop(context, ": missing gene_identifier.", call. = FALSE)
+  }
+
+  counts <- table(original, useNA = "no")
+  duplicate_groups <- counts[counts > 1L]
+
+  if (!length(duplicate_groups)) {
+    out$gene_identifier <- original
+    return(out)
+  }
+
+  if ("source_gene_identifier" %in% names(out)) {
+    stop(
+      context,
+      ": source_gene_identifier already exists; ",
+      "cannot safely disambiguate duplicates.",
+      call. = FALSE
+    )
+  }
+
+  used <- unique(original)
+  seen <- integer()
+  unique_ids <- character(length(original))
+  occurrence <- integer(length(original))
+
+  for (i in seq_along(original)) {
+    value <- original[[i]]
+
+    if (counts[[value]] <= 1L) {
+      unique_ids[[i]] <- value
+      occurrence[[i]] <- 1L
+      next
+    }
+
+    previous <- if (value %in% names(seen)) seen[[value]] else 0L
+    index <- previous + 1L
+    candidate <- paste0(value, ".iabdup", index)
+
+    while (candidate %in% used) {
+      index <- index + 1L
+      candidate <- paste0(value, ".iabdup", index)
+    }
+
+    seen[[value]] <- index
+    used <- c(used, candidate)
+    unique_ids[[i]] <- candidate
+
+    # True ordinal within the original duplicate group. This deliberately
+    # differs from the suffix if an existing identifier forced a suffix skip.
+    occurrence[[i]] <- sum(original[seq_len(i)] == value)
+  }
+
+  group_size <- as.integer(counts[original])
+  out$source_gene_identifier <- original
+  out$source_gene_occurrence <- occurrence
+  out$source_gene_group_size <- group_size
+  out$gene_identifier <- unique_ids
+
+  if (anyNA(out$gene_identifier) ||
+      any(!nzchar(out$gene_identifier)) ||
+      anyDuplicated(out$gene_identifier)) {
+    stop(
+      context,
+      ": duplicate gene identifiers remain after normalization; ",
+      "no silent aggregation allowed.",
+      call. = FALSE
+    )
+  }
+
+  out
+}
+
 # Turn a dataset spec into the assembled list(cell_metadata, gene_data,
 # unique_values). All dataset-specific behaviour comes from `spec`.
 .build_dataset <- function(spec, abc_cache, dataset = "") {
@@ -377,6 +464,10 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
   }
 
   gene <- get_df(spec$gene$dir, spec$gene$file %||% "gene")
+  gene <- .abc_normalize_gene_metadata(
+    gene,
+    context = spec$gene$dir
+  )
   rownames(gene) <- gene$gene_identifier
   message(dataset, ": ", nrow(gene), " genes")
 
