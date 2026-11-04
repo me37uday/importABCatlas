@@ -1,16 +1,20 @@
 Package: importABCatlas
-Title: Import Allen Brain Cell Atlas Data into R as Seurat Objects
+Title: Release-Aware Access to Allen Brain Cell Atlas Data in R
 Version: 0.0.0.9000
 Authors@R: c(
     person("Uday", "Rangaswamy",  role = c("aut", "cre"),
            email = "uday.rangaswamy@ieo.it"),
     person("Federico", "Caretti", role = c("aut")))
-Description: Provides an R-native interface to the Allen Brain Cell (ABC) Atlas.
-    Downloads release manifests and data files from the public ABC Atlas S3
-    bucket, assembles cell metadata for supported datasets (whole human brain,
-    whole mouse brain, aging mouse, and others) and fetches gene expression for
-    filtered cell populations as sparse 'Seurat' objects. Everything runs in R:
-    no Python installation is required.
+Description: Provides an R-native, release-aware interface to the Allen Brain
+    Cell (ABC) Atlas. Discovers supported dataset routes, assembles validated
+    cell and gene metadata, selects exact or sampled cell populations, plans
+    expression requests before transfer, and reads selected H5AD expression
+    directly in R. Expression can be returned as a sparse matrix bundle or,
+    when optional packages are installed, as a Seurat,
+    SingleCellExperiment, or SpatialExperiment object. The package preserves
+    source representation and provenance, distinguishes raw counts from
+    upstream transformed or imputed expression, and requires no Python
+    installation.
 License: MIT + file LICENSE
 Depends:
     R (>= 4.4.0)
@@ -26,7 +30,6 @@ Imports:
     Matrix,
     methods,
     rhdf5,
-    Seurat,
     stats,
     tools,
     xml2
@@ -34,6 +37,10 @@ Suggests:
     knitr,
     rmarkdown,
     SeuratObject,
+    SingleCellExperiment,
+    SpatialExperiment,
+    SummarizedExperiment,
+    S4Vectors,
     testthat (>= 3.0.0),
     withr
 VignetteBuilder: knitr

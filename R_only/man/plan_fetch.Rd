@@ -5,18 +5,21 @@
 \title{Plan an ABC Atlas expression fetch without downloading expression files}
 \usage{
 plan_fetch(
-  download_base = NULL,
-  metadata,
+  data = NULL,
+  metadata = NULL,
   filters = list(),
-  gene_data,
+  gene_data = NULL,
   genes = NULL,
   data_type = NULL,
   offline = FALSE,
-  release = .abc_default_release
+  release = NULL,
+  download_base = NULL
 )
 }
 \arguments{
-\item{download_base}{Directory where ABC Atlas data is downloaded and cached.}
+\item{data}{Optional \code{abc_data} object returned by \code{load_data()}.
+This is the preferred interface. When supplied, its metadata, gene data,
+cache directory, and release are reused automatically.}
 
 \item{metadata}{Cell metadata, typically from \code{\link[=load_data]{load_data()}}.}
 
@@ -32,6 +35,8 @@ If \code{NULL}, the dataset route's declared default is used.}
 \item{offline}{If \code{TRUE}, use only the locally cached manifest.}
 
 \item{release}{ABC Atlas release. Defaults to the package-validated release.}
+
+\item{download_base}{Directory where ABC Atlas data is downloaded and cached.}
 }
 \value{
 An \code{abc_fetch_plan} object describing the requested output and

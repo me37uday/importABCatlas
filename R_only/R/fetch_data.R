@@ -1,5 +1,421 @@
-#' Fetch data from ABC Atlas based on filters and return a Seurat object
+# Resolve either an abc_data object or the legacy metadata/gene_data pair.
+.abc_fetch_inputs <- function(data = NULL, metadata = NULL, gene_data = NULL,
+                              download_base = NULL, release = NULL) {
+  if (!is.null(data)) {
+    if (!inherits(data, "abc_data")) {
+      stop(
+        "data must be an abc_data object returned by load_data().",
+        call. = FALSE
+      )
+    }
+
+    if (!is.null(metadata) || !is.null(gene_data)) {
+      stop(
+        "Supply either data or metadata/gene_data, not both.",
+        call. = FALSE
+      )
+    }
+
+    metadata <- data$cell_metadata
+    gene_data <- data$gene_data
+
+    if (is.null(download_base)) {
+      download_base <- data$download_base
+    }
+
+    if (is.null(release)) {
+      release <- data$release
+    }
+  }
+
+  if (is.null(metadata) || is.null(gene_data)) {
+    stop(
+      "Supply an abc_data object via data, or both metadata and gene_data.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.data.frame(metadata)) {
+    stop("metadata must be a data.frame.", call. = FALSE)
+  }
+
+  if (!is.data.frame(gene_data)) {
+    stop("gene_data must be a data.frame.", call. = FALSE)
+  }
+
+  list(
+    metadata = metadata,
+    gene_data = gene_data,
+    download_base = download_base,
+    release = release
+  )
+}
+
+
+
+.abc_require_output_package <- function(package, return_type) {
+  if (!requireNamespace(package, quietly = TRUE)) {
+    stop(
+      "return_type='", return_type,
+      "' requires package '", package,
+      "'. Install it to use this output format.",
+      call. = FALSE
+    )
+  }
+}
+
+.abc_spatial_coordinates <- function(metadata, coordinate_columns = NULL) {
+  if (!is.null(coordinate_columns)) {
+    if (!is.character(coordinate_columns) ||
+        length(coordinate_columns) != 2L ||
+        anyNA(coordinate_columns) ||
+        any(!nzchar(coordinate_columns))) {
+      stop(
+        "coordinate_columns must contain exactly two non-missing column names.",
+        call. = FALSE
+      )
+    }
+
+    missing <- setdiff(coordinate_columns, names(metadata))
+
+    if (length(missing)) {
+      stop(
+        "Spatial coordinate column",
+        if (length(missing) == 1L) " " else "s ",
+        paste(missing, collapse = ", "),
+        " not found in cell metadata.",
+        call. = FALSE
+      )
+    }
+
+    chosen <- coordinate_columns
+  } else {
+    candidates <- list(
+      c("x_slab_mm", "y_slab_mm"),
+      c("x_rotated_um", "y_rotated_um"),
+      c("x_experiment", "y_experiment"),
+      c("x", "y")
+    )
+
+    present <- vapply(
+      candidates,
+      function(x) all(x %in% names(metadata)),
+      logical(1)
+    )
+
+    if (!any(present)) {
+      stop(
+        "No supported spatial coordinate pair was found. ",
+        "Provide coordinate_columns explicitly.",
+        call. = FALSE
+      )
+    }
+
+    chosen <- candidates[[which(present)[[1L]]]]
+  }
+
+  coordinates <- as.matrix(
+    metadata[, chosen, drop = FALSE]
+  )
+
+  storage.mode(coordinates) <- "double"
+
+  if (anyNA(coordinates) || any(!is.finite(coordinates))) {
+    stop(
+      "Spatial coordinates must be finite and non-missing.",
+      call. = FALSE
+    )
+  }
+
+  rownames(coordinates) <- as.character(metadata$cell_label)
+  colnames(coordinates) <- chosen
+
+  coordinates
+}
+
+.abc_output_provenance <- function(metadata, gene_data, data_type,
+                                   release = NULL) {
+  list(
+    dataset = attr(metadata, "abc_dataset"),
+    release = release,
+    data_type = data_type,
+    modality = attr(metadata, "abc_modality"),
+    spatial = isTRUE(attr(metadata, "abc_spatial")),
+    expression_directories = attr(
+      metadata,
+      "abc_expression_directories"
+    ),
+    n_cells = nrow(metadata),
+    n_genes = nrow(gene_data)
+  )
+}
+
+.abc_muffle_seurat_layer_warnings <- function(expr) {
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      if (conditionMessage(w) %in% c(
+        "No layers found matching search pattern provided",
+        "Cannot find the layer(s) specified"
+      )) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+
+.abc_materialize <- function(expression, cell_metadata, gene_data,
+                             data_type, return_type = "seurat",
+                             assay_name = "RNA",
+                             coordinate_columns = NULL,
+                             provenance = NULL,
+                             spatial = FALSE) {
+  return_type <- match.arg(
+    return_type,
+    c("seurat", "sce", "matrix", "spatial")
+  )
+
+  if (!inherits(expression, "dgCMatrix")) {
+    expression <- methods::as(
+      methods::as(expression, "generalMatrix"),
+      "CsparseMatrix"
+    )
+    expression <- methods::as(
+      expression,
+      "dgCMatrix"
+    )
+  }
+
+  if (ncol(expression) != nrow(cell_metadata)) {
+    stop(
+      "Expression columns do not match the selected cell metadata.",
+      call. = FALSE
+    )
+  }
+
+  if (nrow(expression) != nrow(gene_data)) {
+    stop(
+      "Expression rows do not match the selected gene metadata.",
+      call. = FALSE
+    )
+  }
+
+  if (!identical(
+    as.character(colnames(expression)),
+    as.character(cell_metadata$cell_label)
+  )) {
+    stop(
+      "Expression columns are not aligned to cell_metadata$cell_label.",
+      call. = FALSE
+    )
+  }
+
+  gene_ids <- as.character(gene_data$gene_identifier)
+
+  if (anyNA(gene_ids) ||
+      any(!nzchar(gene_ids)) ||
+      anyDuplicated(gene_ids)) {
+    stop(
+      "gene_data$gene_identifier must be a non-missing unique key.",
+      call. = FALSE
+    )
+  }
+
+  if (!identical(
+    as.character(rownames(expression)),
+    gene_ids
+  )) {
+    stop(
+      "Expression rows are not aligned to gene_data$gene_identifier.",
+      call. = FALSE
+    )
+  }
+
+  rownames(cell_metadata) <- as.character(
+    cell_metadata$cell_label
+  )
+  rownames(gene_data) <- gene_ids
+
+  if (is.null(provenance)) {
+    provenance <- list(
+      data_type = data_type,
+      modality = attr(
+        cell_metadata,
+        "abc_modality"
+      ),
+      spatial = isTRUE(
+        attr(cell_metadata, "abc_spatial")
+      ),
+      n_cells = nrow(cell_metadata),
+      n_genes = nrow(gene_data)
+    )
+  }
+
+  if (return_type == "matrix") {
+    return(
+      structure(
+        list(
+          expression = expression,
+          cell_metadata = cell_metadata,
+          gene_data = gene_data,
+          data_type = data_type,
+          provenance = provenance
+        ),
+        class = c("abc_matrix", "list")
+      )
+    )
+  }
+
+  if (return_type == "seurat") {
+    .abc_require_output_package(
+      "SeuratObject",
+      "seurat"
+    )
+
+    if (any(grepl("[_|]", rownames(expression)))) {
+      stop(
+        "Seurat would alter these feature identifiers; ",
+        "choose return_type='sce' or 'matrix' to preserve them exactly.",
+        call. = FALSE
+      )
+    }
+
+    if (data_type == "raw") {
+      object <- SeuratObject::CreateSeuratObject(
+        counts = expression,
+        assay = assay_name,
+        meta.data = cell_metadata,
+        min.cells = 0,
+        min.features = 0
+      )
+    } else {
+      if (utils::packageVersion("SeuratObject") < "5.0.0") {
+        stop(
+          "Transformed assays require SeuratObject >= 5.0.0.",
+          call. = FALSE
+        )
+      }
+
+      warning(
+        "This is upstream log2-scale data, not necessarily Seurat's usual ",
+        "natural-log normalization. Do not apply count-based normalization or ",
+        "invert it with expm1 without checking the source transformation.",
+        call. = FALSE
+      )
+
+      assay <- SeuratObject::CreateAssay5Object(
+        data = expression
+      )
+
+      object <- withCallingHandlers(
+        SeuratObject::CreateSeuratObject(
+          counts = assay,
+          assay = assay_name,
+          meta.data = cell_metadata
+        ),
+        warning = function(w) {
+          if (conditionMessage(w) %in% c(
+            "No layers found matching search pattern provided",
+            "Cannot find the layer(s) specified"
+          )) {
+            invokeRestart("muffleWarning")
+          }
+        }
+      )
+    }
+
+    object <- .abc_muffle_seurat_layer_warnings({
+      object[[assay_name]] <- SeuratObject::AddMetaData(
+        object[[assay_name]],
+        metadata = gene_data
+      )
+      object
+    })
+
+    object@misc$importABCatlas <- provenance
+
+    return(object)
+  }
+
+  assay_name_bioc <- if (data_type == "raw") {
+    "counts"
+  } else {
+    "log2"
+  }
+
+  assays <- stats::setNames(
+    list(expression),
+    assay_name_bioc
+  )
+
+  row_data <- gene_data
+  col_data <- cell_metadata
+
+  if (return_type == "sce") {
+    .abc_require_output_package(
+      "SingleCellExperiment",
+      "sce"
+    )
+    .abc_require_output_package(
+      "S4Vectors",
+      "sce"
+    )
+
+    return(
+      SingleCellExperiment::SingleCellExperiment(
+        assays = assays,
+        rowData = S4Vectors::DataFrame(row_data),
+        colData = S4Vectors::DataFrame(col_data),
+        metadata = list(
+          importABCatlas = provenance
+        )
+      )
+    )
+  }
+
+  .abc_require_output_package(
+    "SpatialExperiment",
+    "spatial"
+  )
+  .abc_require_output_package(
+    "S4Vectors",
+    "spatial"
+  )
+
+  if (is.null(coordinate_columns) && !isTRUE(spatial)) {
+    stop(
+      "No declared spatial modality. Supply verified coordinate_columns ",
+      "explicitly; dimensionality-reduction coordinates are not anatomical ",
+      "spatial locations.",
+      call. = FALSE
+    )
+  }
+
+  coordinates <- .abc_spatial_coordinates(
+    cell_metadata,
+    coordinate_columns = coordinate_columns
+  )
+
+  provenance$coordinate_columns <- colnames(
+    coordinates
+  )
+
+  SpatialExperiment::SpatialExperiment(
+    assays = assays,
+    rowData = S4Vectors::DataFrame(row_data),
+    colData = S4Vectors::DataFrame(col_data),
+    spatialCoords = coordinates,
+    metadata = list(
+      importABCatlas = provenance
+    )
+  )
+}
+
+#' Fetch selected ABC Atlas expression into an R analysis representation
 #'
+#' @param data Optional \code{abc_data} object returned by \code{load_data()}.
+#'   This is the preferred interface. When supplied, its metadata, gene data,
+#'   cache directory, and release are reused automatically.
 #' @param download_base Directory where ABC Atlas data is downloaded and cached.
 #'   If `NULL` (default), it is resolved by [abc_download_dir()] (option,
 #'   `ABC_ATLAS_CACHE` env var, or a per-user cache directory).
@@ -9,32 +425,70 @@
 #' @param gene_data A data.frame with 'gene_identifier' and 'gene_symbol'
 #'   columns, typically the `gene_data` element returned by [load_data()].
 #' @param genes A character vector of gene names to include. If NULL, all genes in gene_data$gene_symbol will be used.
-#' @param assay_name The name to use for the Seurat assay (default: "RNA").
+#' @param assay_name Assay name used for Seurat output (default: "RNA").
+#' @param return_type Output format: \code{"matrix"} for a sparse expression
+#'   bundle, \code{"seurat"} for a Seurat object, \code{"sce"} for a
+#'   SingleCellExperiment, or \code{"spatial"} for a SpatialExperiment.
+#'   Optional object formats require their corresponding packages.
+#' @param coordinate_columns Optional length-two character vector naming the
+#'   spatial x/y columns. Used only for \code{return_type = "spatial"}.
 #' @param data_type Published expression representation (`"raw"` or `"log2"`).
-#'   If `NULL`, the dataset route's declared default is used. Raw expression is
-#'   stored in the counts layer; log2 expression is stored in the data layer.
+#'   If `NULL`, the dataset route's declared default is used. Raw expression
+#'   retains count semantics. Upstream log2 expression remains transformed
+#'   data and is never presented as counts.
 #' @param offline If `TRUE`, use only locally cached expression data and never
 #'   contact S3 (see [abc_cache_connect()]).
 #' @param release Optional ABC Atlas release version in \code{YYYYMMDD} form.
 #'   Defaults to the release validated against this package. Advanced users may
 #'   supply another release explicitly.
-#' @return A Seurat object containing the filtered cells and gene expression data.
+#' @return The requested expression representation: a sparse matrix bundle,
+#'   Seurat object, SingleCellExperiment, or SpatialExperiment.
 #' @export
-fetch_data <- function(download_base = NULL,
-                       metadata,
+fetch_data <- function(data = NULL,
+                       metadata = NULL,
                        filters = list(),
-                       gene_data,
+                       gene_data = NULL,
                        genes = NULL,
                        assay_name = "RNA",
+                       return_type = c("seurat", "sce", "matrix", "spatial"),
+                       coordinate_columns = NULL,
                        data_type = NULL,
                        offline = FALSE,
-                       release = .abc_default_release) {
-  # Resolve the download directory and connect to the ABC Atlas cache
-  download_base <- abc_download_dir(download_base)
+                       release = NULL,
+                       download_base = NULL) {
+  # A historical positional first argument was download_base. Preserve that
+  # form while allowing an abc_data object to be the preferred first argument.
+  if (!is.null(data) &&
+      !inherits(data, "abc_data") &&
+      is.character(data) &&
+      length(data) == 1L &&
+      is.null(download_base)) {
+    download_base <- data
+    data <- NULL
+  }
+
+  inputs <- .abc_fetch_inputs(
+    data = data,
+    metadata = metadata,
+    gene_data = gene_data,
+    download_base = download_base,
+    release = release
+  )
+
+  metadata <- inputs$metadata
+  gene_data <- inputs$gene_data
+  download_base <- abc_download_dir(inputs$download_base)
+
+  if (is.null(inputs$release)) {
+    release <- .abc_default_release
+  } else {
+    release <- inputs$release
+  }
+
   abc_cache <- abc_cache_connect(
-   download_base,
-   offline = offline,
-   release = release
+    download_base,
+    offline = offline,
+    release = release
   )
 
   # Apply metadata filters and resolve selected genes
@@ -53,45 +507,30 @@ fetch_data <- function(download_base = NULL,
     data_type = data_type
   )
 
-  if (data_type == "raw") {
-    seurat_obj <- Seurat::CreateSeuratObject(
-      counts = expression,
-      assay = assay_name,
-      meta.data = filtered_meta
-    )
-  } else {
-    warning(
-      "This is upstream log2-scale data, not necessarily Seurat's usual ",
-      "natural-log normalization. Do not apply count-based normalization or ",
-      "invert it with expm1 without checking the source transformation.",
-      call. = FALSE
-    )
+  return_type <- match.arg(return_type)
 
-    assay <- SeuratObject::CreateAssay5Object(data = expression)
+  selected_gene_data$.abc_gene_index <- NULL
 
-    # A transformed log2 assay intentionally has a data layer and no counts
-    # layer. During CreateSeuratObject(), SeuratObject attempts to calculate
-    # count-derived QC fields and warns when it cannot find counts. These two
-    # warnings are expected for this valid data-only assay, so muffle only
-    # their exact messages. Any other Seurat warning remains visible.
-    seurat_obj <- withCallingHandlers(
-      Seurat::CreateSeuratObject(
-        counts = assay,
-        assay = assay_name,
-        meta.data = filtered_meta
-      ),
-      warning = function(w) {
-        if (conditionMessage(w) %in% c(
-          "No layers found matching search pattern provided",
-          "Cannot find the layer(s) specified"
-        )) {
-          invokeRestart("muffleWarning")
-        }
-      }
+  provenance <- .abc_output_provenance(
+    filtered_meta,
+    selected_gene_data,
+    data_type = data_type,
+    release = release
+  )
+
+  .abc_materialize(
+    expression = expression,
+    cell_metadata = filtered_meta,
+    gene_data = selected_gene_data,
+    data_type = data_type,
+    return_type = return_type,
+    assay_name = assay_name,
+    coordinate_columns = coordinate_columns,
+    provenance = provenance,
+    spatial = isTRUE(
+      attr(filtered_meta, "abc_spatial")
     )
-  }
-
-  return(seurat_obj)
+  )
 }
 
 #' Plan an ABC Atlas expression fetch without downloading expression files
@@ -99,6 +538,9 @@ fetch_data <- function(download_base = NULL,
 #' Applies the same cell filtering, gene selection and expression-file routing
 #' as [fetch_data()], but does not download or read expression matrices.
 #'
+#' @param data Optional \code{abc_data} object returned by \code{load_data()}.
+#'   This is the preferred interface. When supplied, its metadata, gene data,
+#'   cache directory, and release are reused automatically.
 #' @param download_base Directory where ABC Atlas data is downloaded and cached.
 #' @param metadata Cell metadata, typically from [load_data()].
 #' @param filters Named list of column = value filters.
@@ -111,12 +553,43 @@ fetch_data <- function(download_base = NULL,
 #' @return An `abc_fetch_plan` object describing the requested output and
 #'   expression files required to produce it.
 #' @export
-plan_fetch <- function(download_base = NULL, metadata, filters = list(),
-                       gene_data, genes = NULL, data_type = NULL,
-                       offline = FALSE, release = .abc_default_release) {
-  download_base <- abc_download_dir(download_base)
-  abc_cache <- abc_cache_connect(download_base, offline = offline,
-                                 release = release)
+plan_fetch <- function(data = NULL, metadata = NULL, filters = list(),
+                       gene_data = NULL, genes = NULL, data_type = NULL,
+                       offline = FALSE, release = NULL,
+                       download_base = NULL) {
+  # Backward compatibility for the historical positional download_base.
+  if (!is.null(data) &&
+      !inherits(data, "abc_data") &&
+      is.character(data) &&
+      length(data) == 1L &&
+      is.null(download_base)) {
+    download_base <- data
+    data <- NULL
+  }
+
+  inputs <- .abc_fetch_inputs(
+    data = data,
+    metadata = metadata,
+    gene_data = gene_data,
+    download_base = download_base,
+    release = release
+  )
+
+  metadata <- inputs$metadata
+  gene_data <- inputs$gene_data
+  download_base <- abc_download_dir(inputs$download_base)
+
+  if (is.null(inputs$release)) {
+    release <- .abc_default_release
+  } else {
+    release <- inputs$release
+  }
+
+  abc_cache <- abc_cache_connect(
+    download_base,
+    offline = offline,
+    release = release
+  )
 
   prepared <- .abc_prepare_fetch(metadata, filters, gene_data, genes)
   data_type <- .abc_resolve_data_type(data_type, prepared$metadata)
@@ -324,24 +797,175 @@ print.abc_fetch_plan <- function(x, ...) {
   out
 }
 
-# Apply cell filters and resolve the requested genes for a fetch.
-.abc_prepare_fetch <- function(metadata, filters, gene_data, genes = NULL) {
-  filtered_meta <- metadata
+# Select cells consistently for metadata loading, planning and fetching.
+.abc_select_cells <- function(metadata, filters = list(), cell_ids = NULL,
+                              n_cells = NULL, seed = 1L) {
+  out <- metadata
+
+  if (!is.list(filters) || is.null(names(filters)) ||
+      any(!nzchar(names(filters)))) {
+    if (length(filters)) {
+      stop(
+        "filters must be a named list of metadata column = allowed values.",
+        call. = FALSE
+      )
+    }
+  }
+
   for (filter_col in names(filters)) {
     filter_val <- filters[[filter_col]]
-    if (!filter_col %in% colnames(filtered_meta)) {
-      stop(paste("Column", filter_col, "not found in metadata."))
+
+    if (!filter_col %in% names(out)) {
+      stop(
+        "Column '", filter_col,
+        "' not found in metadata.",
+        call. = FALSE
+      )
     }
-    filtered_meta <- filtered_meta[filtered_meta[[filter_col]] %in% filter_val, ]
+
+    out <- out[out[[filter_col]] %in% filter_val, , drop = FALSE]
   }
 
-  if (nrow(filtered_meta) == 0) {
-    stop("No cells left after filtering. Check your filter values.")
+  if (!is.null(cell_ids)) {
+    if (!is.character(cell_ids)) {
+      stop("cell_ids must be a character vector.", call. = FALSE)
+    }
+
+    if (!length(cell_ids) || anyNA(cell_ids) ||
+        any(!nzchar(cell_ids)) || anyDuplicated(cell_ids)) {
+      stop(
+        "cell_ids must be non-missing, nonempty and contain no duplicates.",
+        call. = FALSE
+      )
+    }
+
+    if (!"cell_label" %in% names(out)) {
+      stop(
+        "Cell metadata is missing required column 'cell_label'.",
+        call. = FALSE
+      )
+    }
+
+    labels <- as.character(out$cell_label)
+
+    if (anyNA(labels) || anyDuplicated(labels)) {
+      stop(
+        "cell_label must be a non-missing unique key before cell_ids selection.",
+        call. = FALSE
+      )
+    }
+
+    pos <- match(cell_ids, labels)
+
+    if (anyNA(pos)) {
+      missing <- cell_ids[is.na(pos)]
+
+      stop(
+        length(missing),
+        " requested cell",
+        if (length(missing) == 1L) "" else "s",
+        " absent after filtering: ",
+        paste(utils::head(missing, 3L), collapse = ", "),
+        if (length(missing) > 3L) ", ..." else "",
+        call. = FALSE
+      )
+    }
+
+    out <- out[pos, , drop = FALSE]
   }
 
-  rownames(filtered_meta) <- filtered_meta$cell_label
+  if (!is.null(n_cells)) {
+    if (length(n_cells) != 1L || is.na(n_cells) ||
+        n_cells < 0 || n_cells != as.integer(n_cells)) {
+      stop(
+        "n_cells must be a single non-negative integer.",
+        call. = FALSE
+      )
+    }
 
-  resolved_genes <- .abc_resolve_genes(gene_data, genes)
+    n_cells <- as.integer(n_cells)
+
+    if (n_cells > nrow(out)) {
+      stop(
+        "n_cells=", n_cells,
+        " exceeds the ", nrow(out),
+        " cells available after filtering.",
+        call. = FALSE
+      )
+    }
+
+    if (n_cells < nrow(out)) {
+      if (length(seed) != 1L || is.na(seed)) {
+        stop("seed must be a single non-missing value.", call. = FALSE)
+      }
+
+      old_seed_exists <- exists(
+        ".Random.seed",
+        envir = .GlobalEnv,
+        inherits = FALSE
+      )
+
+      if (old_seed_exists) {
+        old_seed <- get(
+          ".Random.seed",
+          envir = .GlobalEnv,
+          inherits = FALSE
+        )
+      }
+
+      on.exit(
+        {
+          if (old_seed_exists) {
+            assign(
+              ".Random.seed",
+              old_seed,
+              envir = .GlobalEnv
+            )
+          } else if (exists(
+            ".Random.seed",
+            envir = .GlobalEnv,
+            inherits = FALSE
+          )) {
+            rm(".Random.seed", envir = .GlobalEnv)
+          }
+        },
+        add = TRUE
+      )
+
+      set.seed(seed)
+
+      keep <- sample.int(
+        nrow(out),
+        size = n_cells,
+        replace = FALSE
+      )
+
+      out <- out[keep, , drop = FALSE]
+    }
+  }
+
+  if (!nrow(out)) {
+    stop(
+      "No cells left after selection. Check filters, cell_ids or n_cells.",
+      call. = FALSE
+    )
+  }
+
+  rownames(out) <- as.character(out$cell_label)
+  out
+}
+
+# Apply cell filters and resolve the requested genes for a fetch.
+.abc_prepare_fetch <- function(metadata, filters, gene_data, genes = NULL) {
+  filtered_meta <- .abc_select_cells(
+    metadata,
+    filters = filters
+  )
+
+  resolved_genes <- .abc_resolve_genes(
+    gene_data,
+    genes
+  )
 
   list(
     metadata = filtered_meta,
@@ -580,7 +1204,10 @@ print.abc_fetch_plan <- function(x, ...) {
     j = unlist(cols, use.names = FALSE) %||% integer(),
     x = unlist(vals, use.names = FALSE) %||% numeric(),
     dims = c(length(gene_sel), length(cell_ids)),
-    dimnames = list(make.unique(as.character(gene_filtered$gene_symbol)), cell_ids)
+    dimnames = list(
+      as.character(gene_filtered$gene_identifier),
+      cell_ids
+    )
   )
 }
 

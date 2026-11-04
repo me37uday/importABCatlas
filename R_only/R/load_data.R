@@ -640,9 +640,15 @@
 #'   S3 (see \code{\link{abc_cache_connect}}).
 #' @param release Optional ABC Atlas release version in \code{YYYYMMDD} form.
 #'   When supplied, metadata are loaded from exactly that release.
-#' @return A list with \code{cell_metadata}, \code{gene_data}, and
-#'   \code{unique_values} (the unique entries of each column of interest, used to
-#'   build filters for \code{\link{fetch_data}}).
+#' @param filters Named list of metadata column = allowed values. Filters are
+#'   applied before exact cell selection and sampling.
+#' @param cell_ids Optional character vector of exact cell labels. Requested
+#'   order is preserved and missing cells are an error.
+#' @param n_cells Optional number of cells to sample after filters and
+#'   \code{cell_ids} selection.
+#' @param seed Random seed used when \code{n_cells} samples the selected cells.
+#' @return An \code{abc_data} object containing \code{cell_metadata},
+#'   \code{gene_data}, \code{unique_values}, and dataset/cache provenance.
 #' @examples
 #' \dontrun{
 #' WHB <- load_data("WHB")
@@ -650,22 +656,101 @@
 #' }
 #' @export
 load_data <- function(dataset, download_base = NULL, offline = FALSE,
-                      release = .abc_default_release) {
+                      release = .abc_default_release, filters = list(),
+                      cell_ids = NULL, n_cells = NULL, seed = 1L) {
   datasets <- names(.abc_datasets)
+
   if (missing(dataset)) {
-    stop("Specify a dataset, one of: ", paste(datasets, collapse = ", "))
+    stop(
+      "Specify a dataset, one of: ",
+      paste(datasets, collapse = ", ")
+    )
   }
+
   dataset <- match.arg(dataset, datasets)
   spec <- .abc_datasets[[dataset]]
 
   download_base <- abc_download_dir(download_base)
 
   abc_cache <- abc_cache_connect(
-  download_base,
-  offline = offline,
-  release = release
+    download_base,
+    offline = offline,
+    release = release
   )
-  .build_dataset(spec, abc_cache, dataset)
+
+  out <- .build_dataset(
+    spec,
+    abc_cache,
+    dataset
+  )
+
+  out$cell_metadata <- .abc_select_cells(
+    out$cell_metadata,
+    filters = filters,
+    cell_ids = cell_ids,
+    n_cells = n_cells,
+    seed = seed
+  )
+
+  # Recompute filter choices from the selected population while retaining
+  # the route's curated columns of interest.
+  cols <- intersect(
+    spec$cols_of_interest %||% character(),
+    names(out$cell_metadata)
+  )
+
+  out$unique_values <- lapply(
+    out$cell_metadata[cols],
+    unique
+  )
+
+  out$dataset <- dataset
+  out$download_base <- download_base
+  out$release <- abc_cache$version
+
+  class(out) <- c("abc_data", "list")
+  out
+}
+
+#' @export
+print.abc_data <- function(x, ...) {
+  metadata <- x$cell_metadata
+  gene_data <- x$gene_data
+
+  default_type <- attr(
+    metadata,
+    "abc_default_data_type"
+  ) %||% "raw"
+
+  available <- attr(
+    metadata,
+    "abc_available_data_types"
+  ) %||% c("raw", "log2")
+
+  modality <- attr(
+    metadata,
+    "abc_modality"
+  ) %||% "transcriptomics"
+
+  spatial <- isTRUE(
+    attr(metadata, "abc_spatial")
+  )
+
+  cat(
+    "<abc_data>\n",
+    "  dataset:        ", x$dataset, "\n",
+    "  release:        ", x$release, "\n",
+    "  cells:          ", nrow(metadata), "\n",
+    "  genes:          ", nrow(gene_data), "\n",
+    "  modality:       ", modality, "\n",
+    "  spatial:        ", if (spatial) "yes" else "no", "\n",
+    "  expression:     ", paste(available, collapse = ", "),
+    " (default: ", default_type, ")\n",
+    "  expression data: not loaded\n",
+    sep = ""
+  )
+
+  invisible(x)
 }
 
 # ---- Generic builder --------------------------------------------------------

@@ -65,7 +65,16 @@ test_that("load_data runs end to end on a registered dataset (offline)", {
    offline = TRUE,
    release = fx$version
   ))
-  expect_named(res, c("cell_metadata", "gene_data", "unique_values"))
+  expect_true(
+    all(
+      c(
+        "cell_metadata",
+        "gene_data",
+        "unique_values"
+      ) %in% names(res)
+    )
+  )
+  expect_s3_class(res, "abc_data")
   expect_equal(nrow(res$cell_metadata), 6)
 })
 
@@ -1378,5 +1387,204 @@ test_that("aligned HMBA declares its authoritative shared taxonomy", {
         "Cluster"
       ) %in% spec$cols_of_interest
     )
+  )
+})
+
+test_that("shared cell selection applies filters exactly", {
+  metadata <- data.frame(
+    cell_label = c("c1", "c2", "c3", "c4"),
+    group = c("A", "B", "A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_select_cells(
+    metadata,
+    filters = list(group = "A")
+  )
+
+  expect_identical(out$cell_label, c("c1", "c3"))
+})
+
+test_that("shared cell selection preserves requested cell order", {
+  metadata <- data.frame(
+    cell_label = c("c1", "c2", "c3", "c4"),
+    group = c("A", "B", "A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_select_cells(
+    metadata,
+    cell_ids = c("c4", "c1", "c3")
+  )
+
+  expect_identical(
+    out$cell_label,
+    c("c4", "c1", "c3")
+  )
+})
+
+test_that("shared cell selection samples reproducibly", {
+  metadata <- data.frame(
+    cell_label = paste0("c", seq_len(20L)),
+    stringsAsFactors = FALSE
+  )
+
+  first <- .abc_select_cells(
+    metadata,
+    n_cells = 5L,
+    seed = 42L
+  )
+
+  second <- .abc_select_cells(
+    metadata,
+    n_cells = 5L,
+    seed = 42L
+  )
+
+  expect_identical(
+    first$cell_label,
+    second$cell_label
+  )
+  expect_equal(nrow(first), 5L)
+})
+
+test_that("shared cell selection validates exact cell requests", {
+  metadata <- data.frame(
+    cell_label = c("c1", "c2", "c3"),
+    stringsAsFactors = FALSE
+  )
+
+  expect_error(
+    .abc_select_cells(
+      metadata,
+      cell_ids = c("c1", "ghost")
+    ),
+    "1 requested cell absent after filtering",
+    fixed = TRUE
+  )
+
+  expect_error(
+    .abc_select_cells(
+      metadata,
+      cell_ids = c("c1", "c1")
+    ),
+    "contain no duplicates",
+    fixed = TRUE
+  )
+})
+
+test_that("abc_data preserves the established load-data components", {
+  fx <- make_fixture_cache()
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  spec <- fixture_spec
+  spec$cols_of_interest <- "donor_sex"
+
+  out <- suppressMessages(
+    .build_dataset(
+      spec,
+      cache,
+      "TEST"
+    )
+  )
+
+  out$cell_metadata <- .abc_select_cells(
+    out$cell_metadata,
+    filters = list(donor_sex = "M")
+  )
+
+  cols <- intersect(
+    spec$cols_of_interest,
+    names(out$cell_metadata)
+  )
+
+  out$unique_values <- lapply(
+    out$cell_metadata[cols],
+    unique
+  )
+
+  out$dataset <- "TEST"
+  out$download_base <- fx$dir
+  out$release <- fx$version
+  class(out) <- c("abc_data", "list")
+
+  expect_s3_class(out, "abc_data")
+
+  expect_true(
+    all(
+      c(
+        "cell_metadata",
+        "gene_data",
+        "unique_values",
+        "dataset",
+        "download_base",
+        "release"
+      ) %in% names(out)
+    )
+  )
+
+  expect_identical(out$dataset, "TEST")
+  expect_identical(out$release, fx$version)
+
+  expect_identical(
+    out$cell_metadata$cell_label,
+    c("c1", "c3", "c6")
+  )
+
+  expect_identical(
+    out$unique_values$donor_sex,
+    "M"
+  )
+})
+
+test_that("cell selection preserves ABC routing provenance", {
+  metadata <- data.frame(
+    cell_label = paste0("c", 1:5),
+    group = c("A", "A", "B", "B", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  attr(metadata, "abc_dataset") <- "TEST"
+  attr(metadata, "abc_default_data_type") <- "log2"
+  attr(metadata, "abc_available_data_types") <- "log2"
+  attr(metadata, "abc_expression_directories") <- "TEST-DIR"
+  attr(metadata, "abc_modality") <- "test_transcriptomics"
+  attr(metadata, "abc_spatial") <- FALSE
+
+  out <- .abc_select_cells(
+    metadata,
+    filters = list(group = "B"),
+    n_cells = 2L,
+    seed = 42L
+  )
+
+  expect_identical(
+    attr(out, "abc_dataset"),
+    "TEST"
+  )
+  expect_identical(
+    attr(out, "abc_default_data_type"),
+    "log2"
+  )
+  expect_identical(
+    attr(out, "abc_available_data_types"),
+    "log2"
+  )
+  expect_identical(
+    attr(out, "abc_expression_directories"),
+    "TEST-DIR"
+  )
+  expect_identical(
+    attr(out, "abc_modality"),
+    "test_transcriptomics"
+  )
+  expect_identical(
+    attr(out, "abc_spatial"),
+    FALSE
   )
 })

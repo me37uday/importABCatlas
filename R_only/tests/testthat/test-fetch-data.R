@@ -89,7 +89,7 @@ test_that("expression matrix matches the truth for all cells and genes", {
     )
   )
   expect_s4_class(m, "dgCMatrix")
-  expect_equal(rownames(m), c("Aaa", "Bbb", "Aaa.1", "Ddd"))
+  expect_equal(rownames(m), c("G1", "G2", "G3", "G4"))
   expect_equal(colnames(m), cells$cell_label)
   expect_equal(unname(dense(m)), unname(fx$truth))
 })
@@ -109,7 +109,7 @@ test_that("gene and cell selection, order and block size are respected", {
       block_size = 1L
     )
   )
-  expect_equal(rownames(m), c("Aaa", "Aaa.1", "Ddd"))
+  expect_equal(rownames(m), c("G1", "G3", "G4"))
   expect_equal(colnames(m), c("c5", "c1", "c6", "c3"))
   expect_equal(unname(dense(m)), unname(fx$truth[c("G1", "G3", "G4"), c("c5", "c1", "c6", "c3")]))
 })
@@ -798,10 +798,7 @@ test_that("fetch_data accepts gene identifiers without extra user options", {
     release = fx$version
   )
 
-  expect_identical(
-    rownames(obj),
-    c("Ddd", "Bbb")
-  )
+  expect_identical(rownames(obj), c("G4", "G2"))
   expect_identical(
     colnames(obj),
     c("c1", "c2", "c3")
@@ -958,10 +955,7 @@ test_that("expression matrix aligns normalized duplicate genes to H5AD occurrenc
     )
   )
 
-  expect_equal(
-    rownames(m),
-    c("Aaa", "Aaa.1", "Ddd")
-  )
+  expect_equal(rownames(m), c("G1.iabdup2", "G1.iabdup1", "G4"))
 
   expect_equal(
     colnames(m),
@@ -1007,4 +1001,918 @@ test_that("expression routing can map published cell labels to another matrix", 
     sum(files$n_cells),
     nrow(cells)
   )
+})
+
+test_that("fetch inputs resolve abc_data provenance", {
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    stringsAsFactors = FALSE
+  )
+
+  gene_data <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  data <- structure(
+    list(
+      cell_metadata = metadata,
+      gene_data = gene_data,
+      unique_values = list(),
+      dataset = "TEST",
+      download_base = "/tmp/test-cache",
+      release = "20260711"
+    ),
+    class = c("abc_data", "list")
+  )
+
+  out <- .abc_fetch_inputs(data = data)
+
+  expect_identical(out$metadata, metadata)
+  expect_identical(out$gene_data, gene_data)
+  expect_identical(
+    out$download_base,
+    "/tmp/test-cache"
+  )
+  expect_identical(
+    out$release,
+    "20260711"
+  )
+})
+
+test_that("fetch inputs reject conflicting interfaces", {
+  data <- structure(
+    list(
+      cell_metadata = data.frame(cell_label = "c1"),
+      gene_data = data.frame(
+        gene_identifier = "G1",
+        gene_symbol = "A"
+      ),
+      download_base = "/tmp/test-cache",
+      release = "20260711"
+    ),
+    class = c("abc_data", "list")
+  )
+
+  expect_error(
+    .abc_fetch_inputs(
+      data = data,
+      metadata = data$cell_metadata
+    ),
+    "either data or metadata/gene_data",
+    fixed = TRUE
+  )
+})
+
+test_that("plan_fetch accepts abc_data directly", {
+  fx <- make_fixture_cache()
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  built <- suppressMessages(
+    .build_dataset(
+      fixture_spec,
+      cache,
+      "TEST"
+    )
+  )
+
+  data <- structure(
+    c(
+      built,
+      list(
+        dataset = "TEST",
+        download_base = fx$dir,
+        release = fx$version
+      )
+    ),
+    class = c("abc_data", "list")
+  )
+
+  plan <- plan_fetch(
+    data,
+    genes = "G1",
+    offline = TRUE
+  )
+
+  expect_s3_class(plan, "abc_fetch_plan")
+  expect_identical(plan$n_genes, 1L)
+  expect_identical(plan$n_cells, 6L)
+  expect_identical(plan$release, fx$version)
+})
+
+test_that("plan_fetch abc_data and legacy inputs agree", {
+  fx <- make_fixture_cache()
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  built <- suppressMessages(
+    .build_dataset(
+      fixture_spec,
+      cache,
+      "TEST"
+    )
+  )
+
+  data <- structure(
+    c(
+      built,
+      list(
+        dataset = "TEST",
+        download_base = fx$dir,
+        release = fx$version
+      )
+    ),
+    class = c("abc_data", "list")
+  )
+
+  modern <- plan_fetch(
+    data,
+    genes = "G1",
+    offline = TRUE
+  )
+
+  legacy <- plan_fetch(
+    metadata = data$cell_metadata,
+    gene_data = data$gene_data,
+    genes = "G1",
+    download_base = fx$dir,
+    release = fx$version,
+    offline = TRUE
+  )
+
+  expect_identical(modern$n_cells, legacy$n_cells)
+  expect_identical(modern$n_genes, legacy$n_genes)
+  expect_identical(modern$data_type, legacy$data_type)
+
+  expect_identical(
+    modern$files$feature_matrix_label,
+    legacy$files$feature_matrix_label
+  )
+})
+
+test_that("load_data output passes directly to plan_fetch", {
+  fx <- make_fixture_cache()
+
+  local_mocked_bindings(
+    .abc_datasets = list(TEST = fixture_spec)
+  )
+
+  data <- suppressMessages(
+    load_data(
+      "TEST",
+      download_base = fx$dir,
+      offline = TRUE,
+      release = fx$version,
+      cell_ids = c("c6", "c1", "c3")
+    )
+  )
+
+  expect_s3_class(data, "abc_data")
+  expect_identical(
+    data$cell_metadata$cell_label,
+    c("c6", "c1", "c3")
+  )
+
+  plan <- plan_fetch(
+    data,
+    genes = "G1",
+    offline = TRUE
+  )
+
+  expect_s3_class(plan, "abc_fetch_plan")
+  expect_identical(plan$n_cells, 3L)
+  expect_identical(plan$n_genes, 1L)
+  expect_identical(plan$release, fx$version)
+})
+
+test_that("matrix materialization preserves expression and metadata", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(1, 0, 2, 3, 0, 4),
+      nrow = 2L,
+      byrow = TRUE,
+      dimnames = list(c("G1", "G2"), c("c1", "c2", "c3"))
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2", "c3"),
+    group = c("X", "Y", "X"),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "matrix"
+  )
+
+  expect_s3_class(out, "abc_matrix")
+  expect_s4_class(out$expression, "dgCMatrix")
+  expect_identical(
+    names(out$cell_metadata),
+    names(metadata)
+  )
+  expect_identical(
+    names(out$gene_data),
+    names(genes)
+  )
+
+  for (column in names(metadata)) {
+    expect_identical(
+      out$cell_metadata[[column]],
+      metadata[[column]]
+    )
+  }
+
+  for (column in names(genes)) {
+    expect_identical(
+      out$gene_data[[column]],
+      genes[[column]]
+    )
+  }
+
+  expect_identical(out$data_type, "raw")
+
+  expect_identical(
+    rownames(out$cell_metadata),
+    colnames(out$expression)
+  )
+  expect_identical(
+    rownames(out$gene_data),
+    rownames(out$expression)
+  )
+})
+
+test_that("Seurat materialization keeps raw expression in counts", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(1, 0, 2, 3),
+      nrow = 2L,
+      dimnames = list(c("G1", "G2"), c("c1", "c2"))
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "seurat"
+  )
+
+  expect_s4_class(out, "Seurat")
+
+  counts <- SeuratObject::LayerData(
+    out,
+    assay = "RNA",
+    layer = "counts"
+  )
+
+  expect_equal(
+    unname(as.matrix(counts)),
+    unname(as.matrix(expression))
+  )
+})
+
+test_that("Seurat log2 materialization has data but no count semantics", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(0.5, 0, 1.5, 2),
+      nrow = 2L,
+      dimnames = list(c("G1", "G2"), c("c1", "c2"))
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  expect_warning(
+    out <- .abc_materialize(
+      expression,
+      metadata,
+      genes,
+      data_type = "log2",
+      return_type = "seurat"
+    ),
+    "upstream log2-scale"
+  )
+
+  data_layer <- SeuratObject::LayerData(
+    out,
+    assay = "RNA",
+    layer = "data"
+  )
+
+  expect_equal(
+    unname(as.matrix(data_layer)),
+    unname(as.matrix(expression))
+  )
+
+  expect_false(
+    "counts" %in%
+      SeuratObject::Layers(out[["RNA"]])
+  )
+})
+
+test_that("spatial coordinate selection prefers canonical route coordinates", {
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    x_experiment = c(100, 200),
+    y_experiment = c(300, 400),
+    x_rotated_um = c(10, 20),
+    y_rotated_um = c(30, 40),
+    x_slab_mm = c(1, 2),
+    y_slab_mm = c(3, 4),
+    stringsAsFactors = FALSE
+  )
+
+  coords <- .abc_spatial_coordinates(metadata)
+
+  expect_identical(
+    colnames(coords),
+    c("x_slab_mm", "y_slab_mm")
+  )
+
+  expect_equal(
+    unname(coords),
+    matrix(c(1, 2, 3, 4), ncol = 2L)
+  )
+})
+
+test_that("spatial coordinate selection accepts an explicit pair", {
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    x_experiment = c(100, 200),
+    y_experiment = c(300, 400),
+    x_slab_mm = c(1, 2),
+    y_slab_mm = c(3, 4),
+    stringsAsFactors = FALSE
+  )
+
+  coords <- .abc_spatial_coordinates(
+    metadata,
+    coordinate_columns = c(
+      "x_experiment",
+      "y_experiment"
+    )
+  )
+
+  expect_identical(
+    colnames(coords),
+    c("x_experiment", "y_experiment")
+  )
+})
+
+test_that("SingleCellExperiment raw materialization preserves count semantics", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(1, 0, 2, 3, 0, 4),
+      nrow = 2L,
+      dimnames = list(c("G1", "G2"), c("c1", "c2", "c3"))
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2", "c3"),
+    group = c("X", "Y", "X"),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "sce"
+  )
+
+  expect_s4_class(out, "SingleCellExperiment")
+  expect_identical(
+    SummarizedExperiment::assayNames(out),
+    "counts"
+  )
+
+  expect_equal(
+    unname(as.matrix(
+      SummarizedExperiment::assay(out, "counts")
+    )),
+    unname(as.matrix(expression))
+  )
+
+  expect_identical(
+    colnames(out),
+    metadata$cell_label
+  )
+  expect_identical(
+    rownames(out),
+    rownames(expression)
+  )
+
+  expect_identical(
+    as.character(
+      SummarizedExperiment::colData(out)$cell_label
+    ),
+    metadata$cell_label
+  )
+
+  expect_identical(
+    as.character(
+      SummarizedExperiment::rowData(out)$gene_identifier
+    ),
+    genes$gene_identifier
+  )
+})
+
+test_that("SingleCellExperiment log2 materialization does not invent counts", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(0.5, 0, 1.5, 2),
+      nrow = 2L,
+      dimnames = list(c("G1", "G2"), c("c1", "c2"))
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "log2",
+    return_type = "sce"
+  )
+
+  expect_s4_class(out, "SingleCellExperiment")
+
+  expect_identical(
+    SummarizedExperiment::assayNames(out),
+    "log2"
+  )
+
+  expect_false(
+    "counts" %in%
+      SummarizedExperiment::assayNames(out)
+  )
+
+  expect_equal(
+    unname(as.matrix(
+      SummarizedExperiment::assay(out, "log2")
+    )),
+    unname(as.matrix(expression))
+  )
+})
+
+test_that("SpatialExperiment raw materialization preserves coordinates and counts", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(1, 0, 2, 3),
+      nrow = 2L,
+      dimnames = list(c("G1", "G2"), c("c1", "c2"))
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    x_experiment = c(100, 200),
+    y_experiment = c(300, 400),
+    x_slab_mm = c(1, 2),
+    y_slab_mm = c(3, 4),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "spatial",
+    spatial = TRUE
+  )
+
+  expect_s4_class(out, "SpatialExperiment")
+
+  expect_identical(
+    SummarizedExperiment::assayNames(out),
+    "counts"
+  )
+
+  expect_equal(
+    unname(as.matrix(
+      SummarizedExperiment::assay(out, "counts")
+    )),
+    unname(as.matrix(expression))
+  )
+
+  coords <- SpatialExperiment::spatialCoords(out)
+
+  expect_identical(
+    colnames(coords),
+    c("x_slab_mm", "y_slab_mm")
+  )
+
+  expect_equal(
+    unname(coords),
+    matrix(
+      c(1, 2, 3, 4),
+      ncol = 2L
+    )
+  )
+
+  expect_identical(
+    rownames(coords),
+    metadata$cell_label
+  )
+})
+
+test_that("SpatialExperiment log2 materialization preserves transformed semantics", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(0.5, 0, 1.5, 2),
+      nrow = 2L,
+      dimnames = list(c("G1", "G2"), c("c1", "c2"))
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    x_experiment = c(100, 200),
+    y_experiment = c(300, 400),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "log2",
+    return_type = "spatial",
+    coordinate_columns = c(
+      "x_experiment",
+      "y_experiment"
+    )
+  )
+
+  expect_s4_class(out, "SpatialExperiment")
+
+  expect_identical(
+    SummarizedExperiment::assayNames(out),
+    "log2"
+  )
+
+  expect_false(
+    "counts" %in%
+      SummarizedExperiment::assayNames(out)
+  )
+
+  expect_equal(
+    unname(as.matrix(
+      SummarizedExperiment::assay(out, "log2")
+    )),
+    unname(as.matrix(expression))
+  )
+
+  expect_identical(
+    colnames(
+      SpatialExperiment::spatialCoords(out)
+    ),
+    c("x_experiment", "y_experiment")
+  )
+})
+
+test_that("spatial output requires declared modality or explicit coordinates", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(1, 2),
+      nrow = 1L,
+      dimnames = list(
+        "G1",
+        c("c1", "c2")
+      )
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    x_experiment = c(100, 200),
+    y_experiment = c(300, 400),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = "G1",
+    gene_symbol = "A",
+    stringsAsFactors = FALSE
+  )
+
+  expect_error(
+    .abc_materialize(
+      expression,
+      metadata,
+      genes,
+      data_type = "raw",
+      return_type = "spatial"
+    ),
+    "No declared spatial modality",
+    fixed = TRUE
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "spatial",
+    coordinate_columns = c(
+      "x_experiment",
+      "y_experiment"
+    )
+  )
+
+  expect_s4_class(out, "SpatialExperiment")
+
+  expect_identical(
+    colnames(
+      SpatialExperiment::spatialCoords(out)
+    ),
+    c("x_experiment", "y_experiment")
+  )
+})
+
+test_that("all return formats preserve ABC provenance", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(1, 0, 2, 3),
+      nrow = 2L,
+      dimnames = list(
+        c("G1", "G2"),
+        c("c1", "c2")
+      )
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    x_experiment = c(100, 200),
+    y_experiment = c(300, 400),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  provenance <- list(
+    dataset = "TEST",
+    release = "20260711",
+    data_type = "raw",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    expression_directories = "TEST-DIR",
+    n_cells = 2L,
+    n_genes = 2L
+  )
+
+  matrix_out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "matrix",
+    provenance = provenance,
+    spatial = TRUE
+  )
+
+  expect_identical(
+    matrix_out$provenance,
+    provenance
+  )
+
+  seurat_out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "seurat",
+    provenance = provenance,
+    spatial = TRUE
+  )
+
+  expect_identical(
+    seurat_out@misc$importABCatlas,
+    provenance
+  )
+
+  sce_out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "sce",
+    provenance = provenance,
+    spatial = TRUE
+  )
+
+  expect_identical(
+    S4Vectors::metadata(sce_out)$importABCatlas,
+    provenance
+  )
+
+  spatial_out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "spatial",
+    provenance = provenance,
+    spatial = TRUE
+  )
+
+  spatial_provenance <-
+    S4Vectors::metadata(spatial_out)$importABCatlas
+
+  expect_identical(
+    spatial_provenance$dataset,
+    "TEST"
+  )
+  expect_identical(
+    spatial_provenance$release,
+    "20260711"
+  )
+  expect_identical(
+    spatial_provenance$data_type,
+    "raw"
+  )
+  expect_identical(
+    spatial_provenance$modality,
+    "spatial_transcriptomics"
+  )
+  expect_true(spatial_provenance$spatial)
+
+  expect_identical(
+    spatial_provenance$coordinate_columns,
+    c("x_experiment", "y_experiment")
+  )
+})
+
+test_that("native output provenance records route and selection context", {
+  metadata <- data.frame(
+    cell_label = c("c1", "c2", "c3"),
+    stringsAsFactors = FALSE
+  )
+
+  attr(metadata, "abc_dataset") <- "TEST"
+  attr(metadata, "abc_modality") <- "imputed_spatial_transcriptomics"
+  attr(metadata, "abc_spatial") <- TRUE
+  attr(metadata, "abc_expression_directories") <- "TEST-IMPUTED"
+
+  genes <- data.frame(
+    gene_identifier = c("G1", "G2"),
+    gene_symbol = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  provenance <- .abc_output_provenance(
+    metadata,
+    genes,
+    data_type = "log2",
+    release = "20260711"
+  )
+
+  expect_identical(provenance$dataset, "TEST")
+  expect_identical(provenance$release, "20260711")
+  expect_identical(provenance$data_type, "log2")
+  expect_identical(
+    provenance$modality,
+    "imputed_spatial_transcriptomics"
+  )
+  expect_true(provenance$spatial)
+
+  expect_identical(
+    provenance$expression_directories,
+    "TEST-IMPUTED"
+  )
+
+  expect_identical(provenance$n_cells, 3L)
+  expect_identical(provenance$n_genes, 2L)
+})
+
+test_that("matrix materialization has no Seurat dependency", {
+  expression <- Matrix::Matrix(
+    matrix(
+      c(1, 2),
+      nrow = 1L,
+      dimnames = list(
+        "G1",
+        c("c1", "c2")
+      )
+    ),
+    sparse = TRUE
+  )
+
+  metadata <- data.frame(
+    cell_label = c("c1", "c2"),
+    stringsAsFactors = FALSE
+  )
+
+  genes <- data.frame(
+    gene_identifier = "G1",
+    gene_symbol = "A",
+    stringsAsFactors = FALSE
+  )
+
+  local_mocked_bindings(
+    .abc_require_output_package = function(...) {
+      stop(
+        "optional package lookup should not occur",
+        call. = FALSE
+      )
+    }
+  )
+
+  out <- .abc_materialize(
+    expression,
+    metadata,
+    genes,
+    data_type = "raw",
+    return_type = "matrix"
+  )
+
+  expect_s3_class(out, "abc_matrix")
+  expect_s4_class(out$expression, "dgCMatrix")
 })
