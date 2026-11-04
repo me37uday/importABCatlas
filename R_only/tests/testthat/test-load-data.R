@@ -1347,3 +1347,36 @@ test_that("HMBA PatchSeq declares native log2-only sources", {
   )
   expect_false(spec$spatial)
 })
+
+test_that("aligned HMBA declares its authoritative shared taxonomy", {
+  spec <- .abc_datasets$HMBA
+
+  expect_identical(
+    spec$cell$dir,
+    "HMBA-10xMultiome-BG-Aligned"
+  )
+  expect_identical(
+    spec$gene$dir,
+    "HMBA-10xMultiome-BG-Aligned"
+  )
+  expect_identical(
+    spec$expression_directories,
+    "HMBA-10xMultiome-BG-Aligned"
+  )
+  expect_identical(
+    spec$taxonomy,
+    "HMBA-BG-taxonomy-CCN20250428"
+  )
+
+  expect_true(
+    all(
+      c(
+        "Neighborhood",
+        "Class",
+        "Subclass",
+        "Group",
+        "Cluster"
+      ) %in% spec$cols_of_interest
+    )
+  )
+})

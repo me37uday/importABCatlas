@@ -142,6 +142,7 @@
     spatial = FALSE,
     cell = list(dir = "HMBA-10xMultiome-BG-Aligned",
                 col_classes = c(cell_label = "character")),
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
     joins = list(
       list(dir = "HMBA-10xMultiome-BG-Aligned", file = "donor", key = "donor_label"),
       list(
@@ -152,9 +153,19 @@
       )
     ),
     gene = list(dir = "HMBA-10xMultiome-BG-Aligned"),
-    cols_of_interest = c("species_scientific_name", "species_common_name",
-      "donor_sex", "donor_age", "region_of_interest_name",
-      "anatomical_division_label")
+    cols_of_interest = c(
+      "species_scientific_name",
+      "species_common_name",
+      "donor_sex",
+      "donor_age",
+      "region_of_interest_name",
+      "anatomical_division_label",
+      "Neighborhood",
+      "Class",
+      "Subclass",
+      "Group",
+      "Cluster"
+    )
   ),
   HMBA_Human = list(
     default_data_type = "raw",
