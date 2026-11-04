@@ -1145,13 +1145,118 @@ print.abc_fetch_plan <- function(x, ...) {
   do.call(rbind, out)
 }
 
+# Open the central H5AD expression matrix without realizing it in memory.
+#
+# ABC Atlas H5AD files currently publish /X either as an AnnData sparse-matrix
+# group (for example csr_matrix) or as a dense HDF5 dataset with
+# encoding-type="array". Return a genes x cells delayed matrix in both cases.
+.abc_h5ad_expression <- function(path, n_genes = NULL, n_cells = NULL) {
+  info <- rhdf5::h5ls(
+    path,
+    recursive = FALSE
+  )
+
+  entry <- info[
+    info$group == "/" &
+      info$name == "X",
+    ,
+    drop = FALSE
+  ]
+
+  if (nrow(entry) != 1L) {
+    stop(
+      basename(path),
+      ": expected exactly one /X object in H5AD file.",
+      call. = FALSE
+    )
+  }
+
+  attrs <- rhdf5::h5readAttributes(
+    path,
+    "/X"
+  )
+
+  encoding <- attrs[["encoding-type"]]
+
+  if (is.null(encoding) || !length(encoding)) {
+    encoding <- NA_character_
+  } else {
+    encoding <- as.character(encoding[[1L]])
+  }
+
+  otype <- as.character(entry$otype[[1L]])
+
+  if (
+    identical(otype, "H5I_GROUP") &&
+    encoding %in% c(
+      "csr_matrix",
+      "csc_matrix"
+    )
+  ) {
+    X <- HDF5Array::H5SparseMatrix(
+      path,
+      "/X"
+    )
+  } else if (
+    identical(otype, "H5I_DATASET") &&
+    (
+      is.na(encoding) ||
+      encoding %in% c(
+        "array",
+        "dense"
+      )
+    )
+  ) {
+    X <- HDF5Array::HDF5Array(
+      path,
+      "/X"
+    )
+  } else {
+    stop(
+      basename(path),
+      ": unsupported /X H5AD layout (otype=",
+      otype,
+      ", encoding-type=",
+      if (is.na(encoding)) "<missing>" else encoding,
+      ").",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.null(n_genes) &&
+    !is.null(n_cells)
+  ) {
+    expected <- c(
+      as.integer(n_genes),
+      as.integer(n_cells)
+    )
+
+    observed <- as.integer(dim(X))
+
+    if (!identical(observed, expected)) {
+      stop(
+        basename(path),
+        ": /X dimensions are ",
+        paste(observed, collapse = " x "),
+        " but var/obs imply ",
+        paste(expected, collapse = " x "),
+        ". Automatic transposition is intentionally disabled.",
+        call. = FALSE
+      )
+    }
+  }
+
+  X
+}
+
 # Sparse genes x cells expression matrix (dgCMatrix) for `cells` (rownames are
 # cell labels) and the genes of `gene_data` whose symbol is in `selected_genes`.
 #
 # Cells are grouped by the expression file that holds them (dataset_label +
-# feature_matrix_label); each file is downloaded if needed and read as an
-# on-disk sparse matrix, from which only the requested cells and genes are
-# realized, `block_size` cells at a time. Nothing is ever densified. Rows follow
+# feature_matrix_label); each file is downloaded if needed and opened as an
+# on-disk delayed matrix. Both sparse H5AD groups and dense /X datasets are
+# supported, and only requested gene/cell blocks are realized. Rows follow
 # the resolved gene request order and are named by (made unique) gene symbol;
 # columns
 # follow the order of `cells`. Cells not found in any file are all-zero columns.
@@ -1179,17 +1284,24 @@ print.abc_fetch_plan <- function(x, ...) {
 
     path <- abc_cache$get_file_path(directory = files$dataset_label[k],
                                     file_name = paste0(matrix_file, "/", data_type))
+    var_index <- .h5ad_index(path, "var")
+    obs_index <- .h5ad_index(path, "obs")
+
     gene_pos <- .abc_gene_positions(
       gene_data,
       gene_sel,
-      .h5ad_index(path, "var"),
+      var_index,
       basename(path)
     )
-    file_pos <- match(cell_ids, .h5ad_index(path, "obs"))
+    file_pos <- match(cell_ids, obs_index)
     wanted <- which(!is.na(file_pos))
     wanted <- wanted[order(file_pos[wanted])]  # read cells in on-disk order
 
-    X <- HDF5Array::H5SparseMatrix(path, "/X")  # genes x cells, on disk
+    X <- .abc_h5ad_expression(
+      path,
+      n_genes = length(var_index),
+      n_cells = length(obs_index)
+    )
     for (block in split(wanted, ceiling(seq_along(wanted) / block_size))) {
       m <- methods::as(X[gene_pos, file_pos[block], drop = FALSE], "dgCMatrix")
       nz <- Matrix::summary(m)

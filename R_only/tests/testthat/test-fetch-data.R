@@ -1916,3 +1916,213 @@ test_that("matrix materialization has no Seurat dependency", {
   expect_s3_class(out, "abc_matrix")
   expect_s4_class(out$expression, "dgCMatrix")
 })
+
+test_that("H5AD expression reader supports sparse and dense X layouts", {
+  fx <- make_fixture_cache()
+
+  sparse_path <- file.path(
+    fx$dir,
+    "expression_matrices",
+    "TEST-10X",
+    fx$version,
+    "TEST-A-raw.h5ad"
+  )
+
+  sparse <- .abc_h5ad_expression(
+    sparse_path,
+    n_genes = 4L,
+    n_cells = 3L
+  )
+
+  expect_s4_class(
+    sparse,
+    "H5SparseMatrix"
+  )
+
+  dense_path <- file.path(
+    withr::local_tempdir(),
+    "dense.h5ad"
+  )
+
+  counts <- matrix(
+    c(
+      1, 0, 5, 0,
+      0, 2, 0, 7,
+      3, 0, 0, 4
+    ),
+    nrow = 3L,
+    byrow = TRUE
+  )
+
+  write_dense_h5ad(
+    dense_path,
+    counts = counts,
+    cell_labels = c("c1", "c2", "c3"),
+    gene_ids = c("G1", "G2", "G3", "G4"),
+    gene_symbols = c("A", "B", "C", "D")
+  )
+
+  dense_x <- .abc_h5ad_expression(
+    dense_path,
+    n_genes = 4L,
+    n_cells = 3L
+  )
+
+  expect_s4_class(
+    dense_x,
+    "HDF5Matrix"
+  )
+
+  expect_identical(
+    as.integer(dim(dense_x)),
+    c(4L, 3L)
+  )
+
+  expect_equal(
+    unname(as.matrix(dense_x)),
+    unname(t(counts))
+  )
+})
+
+
+test_that("dense H5AD expression preserves requested gene and cell order", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "dense.h5ad")
+
+  cells <- c("c1", "c2", "c3")
+
+  genes <- data.frame(
+    gene_identifier = c(
+      "G1",
+      "G2",
+      "G3",
+      "G4"
+    ),
+    gene_symbol = c(
+      "A",
+      "B",
+      "C",
+      "D"
+    ),
+    stringsAsFactors = FALSE
+  )
+
+  # cells x genes
+  counts <- matrix(
+    c(
+      1, 0, 5, 0,
+      0, 2, 0, 7,
+      3, 0, 0, 4
+    ),
+    nrow = 3L,
+    byrow = TRUE
+  )
+
+  write_dense_h5ad(
+    path,
+    counts = counts,
+    cell_labels = cells,
+    gene_ids = genes$gene_identifier,
+    gene_symbols = genes$gene_symbol
+  )
+
+  var <- .h5ad_index(
+    path,
+    "var"
+  )
+  obs <- .h5ad_index(
+    path,
+    "obs"
+  )
+
+  gene_sel <- c(4L, 1L, 3L)
+  requested_cells <- c(
+    "c3",
+    "c1"
+  )
+
+  gene_pos <- .abc_gene_positions(
+    genes,
+    gene_sel,
+    var,
+    basename(path)
+  )
+
+  cell_pos <- match(
+    requested_cells,
+    obs
+  )
+
+  X <- .abc_h5ad_expression(
+    path,
+    n_genes = length(var),
+    n_cells = length(obs)
+  )
+
+  out <- methods::as(
+    X[
+      gene_pos,
+      cell_pos,
+      drop = FALSE
+    ],
+    "dgCMatrix"
+  )
+
+  expect_identical(
+    dim(out),
+    c(3L, 2L)
+  )
+
+  expect_equal(
+    unname(as.matrix(out)),
+    unname(
+      t(counts)[
+        c(4L, 1L, 3L),
+        c(3L, 1L),
+        drop = FALSE
+      ]
+    )
+  )
+})
+
+
+test_that("H5AD expression reader rejects inconsistent dimensions", {
+  path <- file.path(
+    withr::local_tempdir(),
+    "dense-bad-dimensions.h5ad"
+  )
+
+  counts <- matrix(
+    seq_len(12L),
+    nrow = 3L,
+    ncol = 4L
+  )
+
+  write_dense_h5ad(
+    path,
+    counts = counts,
+    cell_labels = c("c1", "c2", "c3"),
+    gene_ids = c("G1", "G2", "G3", "G4"),
+    gene_symbols = c("A", "B", "C", "D")
+  )
+
+  expect_error(
+    .abc_h5ad_expression(
+      path,
+      n_genes = 3L,
+      n_cells = 4L
+    ),
+    "/X dimensions are",
+    fixed = TRUE
+  )
+
+  expect_error(
+    .abc_h5ad_expression(
+      path,
+      n_genes = 3L,
+      n_cells = 4L
+    ),
+    "Automatic transposition is intentionally disabled",
+    fixed = TRUE
+  )
+})

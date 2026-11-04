@@ -34,6 +34,81 @@ write_h5ad <- function(path, counts, cell_labels, gene_ids, gene_symbols) {
   invisible(path)
 }
 
+# Write a minimal H5AD whose central /X matrix is a dense HDF5 dataset.
+# `counts` is cells x genes, matching the orientation accepted by write_h5ad().
+write_dense_h5ad <- function(path, counts, cell_labels, gene_ids, gene_symbols) {
+  rhdf5::h5createFile(path)
+
+  fid <- rhdf5::H5Fopen(path)
+  on.exit(rhdf5::H5Fclose(fid))
+
+  set_attrs <- function(object, attrs) {
+    oid <- rhdf5::H5Oopen(fid, object)
+    on.exit(rhdf5::H5Oclose(oid), add = TRUE)
+
+    for (n in names(attrs)) {
+      rhdf5::h5writeAttribute(
+        attrs[[n]],
+        oid,
+        n
+      )
+    }
+  }
+
+  # rhdf5 writes R matrices with their dimensions reversed in the HDF5
+  # representation used by these fixtures. Writing t(counts) therefore
+  # produces /X as genes x cells, matching the published ABC files and the
+  # package's expression-reader contract.
+  rhdf5::h5write(
+    t(counts),
+    fid,
+    "X"
+  )
+
+  set_attrs(
+    "X",
+    list(
+      `encoding-type` = "array",
+      `encoding-version` = "0.2.0"
+    )
+  )
+
+  rhdf5::h5createGroup(fid, "obs")
+  rhdf5::h5write(
+    cell_labels,
+    fid,
+    "obs/cell_label"
+  )
+  set_attrs(
+    "obs",
+    list(
+      `_index` = "cell_label",
+      `encoding-type` = "dataframe"
+    )
+  )
+
+  rhdf5::h5createGroup(fid, "var")
+  rhdf5::h5write(
+    gene_ids,
+    fid,
+    "var/gene_identifier"
+  )
+  rhdf5::h5write(
+    gene_symbols,
+    fid,
+    "var/gene_symbol"
+  )
+  set_attrs(
+    "var",
+    list(
+      `_index` = "gene_identifier",
+      `encoding-type` = "dataframe"
+    )
+  )
+
+  invisible(path)
+}
+
 # Build a fixture cache in `dir` for a WHB-like dataset "TEST-10X" with two
 # expression files, a taxonomy, a region-of-interest map and a gene table.
 # `var_ids` overrides the gene identifiers stored in the h5ad files.
