@@ -1317,3 +1317,33 @@ test_that("spatial routes automatically attach available spatial metadata", {
   )
   expect_equal(nrow(cm), nrow(fx$cells))
 })
+
+test_that("HMBA PatchSeq declares native log2-only sources", {
+  spec <- .abc_datasets$HMBA_PatchSeq
+
+  expect_identical(
+    spec$cell$dir,
+    "HMBA-Macaque-PatchSeq"
+  )
+  expect_identical(
+    spec$gene$dir,
+    "HMBA-Macaque-PatchSeq"
+  )
+  expect_identical(
+    spec$expression_directories,
+    "HMBA-Macaque-PatchSeq"
+  )
+  expect_identical(
+    spec$taxonomy,
+    "HMBA-BG-taxonomy-CCN20250428"
+  )
+
+  expect_true(spec$auto_joins)
+  expect_identical(spec$default_data_type, "log2")
+  expect_identical(spec$available_data_types, "log2")
+  expect_identical(
+    spec$modality,
+    "patch_seq_transcriptomics"
+  )
+  expect_false(spec$spatial)
+})

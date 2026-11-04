@@ -255,6 +255,35 @@
     )
   ),
 
+  HMBA_PatchSeq = list(
+    default_data_type = "log2",
+    available_data_types = "log2",
+    expression_directories = "HMBA-Macaque-PatchSeq",
+    modality = "patch_seq_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "HMBA-Macaque-PatchSeq",
+      col_classes = c(cell_label = "character")
+    ),
+    auto_joins = TRUE,
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
+    gene = list(dir = "HMBA-Macaque-PatchSeq"),
+    cols_of_interest = c(
+      "library_technique",
+      "barcoded_cell_sample_technique",
+      "region_of_interest_label",
+      "donor_age",
+      "donor_sex",
+      "species_genus",
+      "species_scientific_name",
+      "Neighborhood",
+      "Class",
+      "Subclass",
+      "Group",
+      "Cluster"
+    )
+  ),
+
   HMBA_spatial_Human = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
