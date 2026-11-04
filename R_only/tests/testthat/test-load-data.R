@@ -696,3 +696,193 @@ test_that("gene normalization avoids collisions with published identifiers", {
   )
   expect_identical(anyDuplicated(out$gene_identifier), 0L)
 })
+
+test_that("HMBA species routes declare automatic species-specific sources", {
+  expected <- list(
+    HMBA_Human = list(
+      species = "Human",
+      gene = "human_gene"
+    ),
+    HMBA_Macaque = list(
+      species = "Macaque",
+      gene = "macaque_gene"
+    ),
+    HMBA_Marmoset = list(
+      species = "Marmoset",
+      gene = "marmoset_gene"
+    )
+  )
+
+  for (route in names(expected)) {
+    spec <- .abc_datasets[[route]]
+    want <- expected[[route]]
+
+    expect_identical(spec$cell$dir, "HMBA-10xMultiome-BG")
+    expect_identical(
+      spec$expression_directories,
+      "HMBA-10xMultiome-BG"
+    )
+    expect_identical(
+      spec$taxonomy,
+      "HMBA-BG-taxonomy-CCN20250428"
+    )
+    expect_identical(spec$gene$dir, "HMBA-10xMultiome-BG")
+    expect_identical(spec$gene$file, want$gene)
+
+    expect_identical(spec$subset$dir, "HMBA-10xMultiome-BG")
+    expect_identical(spec$subset$file, "donor")
+    expect_identical(spec$subset$key, "donor_label")
+    expect_identical(spec$subset$column, "species_genus")
+    expect_identical(spec$subset$value, want$species)
+
+    expect_identical(
+      spec$modality,
+      "single_nucleus_transcriptomics"
+    )
+    expect_false(spec$spatial)
+  }
+})
+
+test_that("route subsets are resolved internally before annotation", {
+  fx <- make_fixture_cache()
+
+  # Give fixture cells donor identities without changing the shared helper.
+  cell_path <- file.path(
+    fx$dir,
+    "metadata",
+    "TEST-10X",
+    fx$version,
+    "cell_metadata.csv"
+  )
+
+  cells <- utils::read.csv(
+    cell_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  cells$donor_label <- c("d1", "d2", "d1", "d2", "d3", "d3")
+
+  utils::write.csv(
+    cells,
+    cell_path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  donor <- data.frame(
+    donor_label = c("d1", "d2", "d3"),
+    species_genus = c("A", "B", "A"),
+    donor_age = c("young", "old", "middle"),
+    stringsAsFactors = FALSE
+  )
+
+  donor_rel <- file.path(
+    "metadata",
+    "TEST-10X",
+    fx$version,
+    "donor.csv"
+  )
+
+  donor_path <- file.path(fx$dir, donor_rel)
+
+  utils::write.csv(
+    donor,
+    donor_path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  # Refresh cell_metadata because the fixture file was modified.
+  cell_entry <-
+    manifest$file_listing[["TEST-10X"]][["metadata"]][["cell_metadata"]][["files"]][["csv"]]
+
+  cell_entry$size <- file.size(cell_path)
+  cell_entry$file_hash <- unname(tools::md5sum(cell_path))
+
+  manifest$file_listing[["TEST-10X"]][["metadata"]][["cell_metadata"]][["files"]][["csv"]] <-
+    cell_entry
+
+  donor_entry <- list(
+    version = fx$version,
+    relative_path = donor_rel,
+    url = paste0("https://example.invalid/", donor_rel),
+    size = file.size(donor_path),
+    file_hash = unname(tools::md5sum(donor_path))
+  )
+
+  manifest$file_listing[["TEST-10X"]][["metadata"]][["donor"]] <- list(
+    files = stats::setNames(
+      list(donor_entry),
+      tools::file_ext(donor_rel)
+    )
+  )
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  spec <- fixture_spec
+  spec$subset <- list(
+    dir = "TEST-10X",
+    file = "donor",
+    key = "donor_label",
+    column = "species_genus",
+    value = "A"
+  )
+
+  msgs <- capture_messages(
+    out <- .build_dataset(
+      spec,
+      cache,
+      "TEST_A"
+    )
+  )
+
+  cm <- out$cell_metadata
+
+  expect_match(
+    msgs,
+    "TEST_A: 4 cells",
+    all = FALSE
+  )
+
+  expect_identical(
+    cm$cell_label,
+    c("c1", "c3", "c5", "c6")
+  )
+
+  expect_true(all(cm$species_genus == "A"))
+
+  expect_identical(
+    cm$donor_label,
+    c("d1", "d1", "d3", "d3")
+  )
+
+  expect_identical(
+    cm$donor_age,
+    c("young", "young", "middle", "middle")
+  )
+
+  expect_equal(nrow(cm), 4L)
+})

@@ -156,6 +156,105 @@
       "donor_sex", "donor_age", "region_of_interest_name",
       "anatomical_division_label")
   ),
+  HMBA_Human = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "HMBA-10xMultiome-BG",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "HMBA-10xMultiome-BG",
+      col_classes = c(cell_label = "character")
+    ),
+    subset = list(
+      dir = "HMBA-10xMultiome-BG",
+      file = "donor",
+      key = "donor_label",
+      column = "species_genus",
+      value = "Human"
+    ),
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
+    gene = list(
+      dir = "HMBA-10xMultiome-BG",
+      file = "human_gene"
+    ),
+    cols_of_interest = c(
+      "species_genus",
+      "species_scientific_name",
+      "species_common_name",
+      "donor_sex",
+      "donor_age",
+      "region_of_interest_name",
+      "anatomical_division_label"
+    )
+  ),
+
+  HMBA_Macaque = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "HMBA-10xMultiome-BG",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "HMBA-10xMultiome-BG",
+      col_classes = c(cell_label = "character")
+    ),
+    subset = list(
+      dir = "HMBA-10xMultiome-BG",
+      file = "donor",
+      key = "donor_label",
+      column = "species_genus",
+      value = "Macaque"
+    ),
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
+    gene = list(
+      dir = "HMBA-10xMultiome-BG",
+      file = "macaque_gene"
+    ),
+    cols_of_interest = c(
+      "species_genus",
+      "species_scientific_name",
+      "species_common_name",
+      "donor_sex",
+      "donor_age",
+      "region_of_interest_name",
+      "anatomical_division_label"
+    )
+  ),
+
+  HMBA_Marmoset = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "HMBA-10xMultiome-BG",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "HMBA-10xMultiome-BG",
+      col_classes = c(cell_label = "character")
+    ),
+    subset = list(
+      dir = "HMBA-10xMultiome-BG",
+      file = "donor",
+      key = "donor_label",
+      column = "species_genus",
+      value = "Marmoset"
+    ),
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
+    gene = list(
+      dir = "HMBA-10xMultiome-BG",
+      file = "marmoset_gene"
+    ),
+    cols_of_interest = c(
+      "species_genus",
+      "species_scientific_name",
+      "species_common_name",
+      "donor_sex",
+      "donor_age",
+      "region_of_interest_name",
+      "anatomical_division_label"
+    )
+  ),
+
   PMDBS = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
@@ -364,8 +463,75 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
 
   cell <- get_df(spec$cell$dir, spec$cell$file %||% "cell_metadata",
                  spec$cell$col_classes)
-  message(dataset, ": ", nrow(cell), " cells")
   cell_extended <- cell
+
+  # Some logical routes share one upstream cell table but represent a strict
+  # subset of it. Resolve that population before expensive taxonomy joins.
+  # This is internal route configuration, not a user-facing filter.
+  if (!is.null(spec$subset)) {
+    subset_spec <- spec$subset
+
+    subset_metadata <- get_df(
+      subset_spec$dir,
+      subset_spec$file
+    )
+
+    required <- c(subset_spec$key, subset_spec$column)
+    missing <- setdiff(required, names(subset_metadata))
+
+    if (length(missing)) {
+      stop(
+        dataset,
+        ": subset metadata is missing required column(s): ",
+        paste(missing, collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+
+    keep_keys <- unique(
+      as.character(
+        subset_metadata[
+          !is.na(subset_metadata[[subset_spec$column]]) &
+            as.character(subset_metadata[[subset_spec$column]]) ==
+              subset_spec$value,
+          subset_spec$key
+        ]
+      )
+    )
+
+    keep_keys <- keep_keys[!is.na(keep_keys) & nzchar(keep_keys)]
+
+    if (!length(keep_keys)) {
+      stop(
+        dataset,
+        ": no ",
+        subset_spec$value,
+        " cells found from ",
+        subset_spec$file,
+        ".",
+        call. = FALSE
+      )
+    }
+
+    cell_keys <- as.character(cell_extended[[subset_spec$key]])
+    cell_extended <- cell_extended[
+      !is.na(cell_keys) & cell_keys %in% keep_keys,
+      ,
+      drop = FALSE
+    ]
+
+    # Attach the same route-defining metadata after filtering so species and
+    # donor variables remain available to users without another manual join.
+    cell_extended <- .abc_safe_join(
+      cell_extended,
+      subset_metadata,
+      subset_spec$key,
+      subset_spec$file
+    )
+  }
+
+  message(dataset, ": ", nrow(cell_extended), " cells")
 
   # Taxonomy annotation. Some routes already carry cluster_alias in their
   # cell table; others publish authoritative cell_to_cluster_membership in
