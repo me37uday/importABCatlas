@@ -886,3 +886,206 @@ test_that("route subsets are resolved internally before annotation", {
 
   expect_equal(nrow(cm), 4L)
 })
+
+test_that("SEA-AD routes declare reference-compatible sources", {
+  expected <- list(
+    SEAAD_Multiregion = list(
+      directory = "SEA-AD-Multiregion-10X",
+      taxonomy = "SEA-AD-Multiregion-taxonomy"
+    ),
+    SEAAD_CaH = list(
+      directory = "SEA-AD-CaH-10X",
+      taxonomy = "SEA-AD-CaH-taxonomy"
+    )
+  )
+
+  for (route in names(expected)) {
+    spec <- .abc_datasets[[route]]
+    want <- expected[[route]]
+
+    expect_identical(spec$cell$dir, want$directory)
+    expect_identical(spec$gene$dir, want$directory)
+    expect_identical(
+      spec$expression_directories,
+      want$directory
+    )
+    expect_identical(spec$taxonomy, want$taxonomy)
+    expect_true(spec$auto_joins)
+    expect_identical(
+      spec$default_data_type,
+      "raw"
+    )
+    expect_identical(
+      spec$available_data_types,
+      c("raw", "log2")
+    )
+    expect_identical(
+      spec$modality,
+      "single_nucleus_transcriptomics"
+    )
+    expect_false(spec$spatial)
+  }
+})
+
+test_that("standard metadata auto-joins attach available route annotations", {
+  fx <- make_fixture_cache()
+
+  cell_path <- file.path(
+    fx$dir,
+    "metadata",
+    "TEST-10X",
+    fx$version,
+    "cell_metadata.csv"
+  )
+
+  cells <- utils::read.csv(
+    cell_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  cells$library_label <- c("l1", "l1", "l2", "l2", "l3", "l3")
+  cells$donor_label <- c("d1", "d1", "d2", "d2", "d3", "d3")
+
+  utils::write.csv(
+    cells,
+    cell_path,
+    row.names = FALSE,
+    na = ""
+  )
+
+  library_table <- data.frame(
+    library_label = c("l1", "l2", "l3"),
+    region = c("R1", "R2", "R3"),
+    stringsAsFactors = FALSE
+  )
+
+  donor <- data.frame(
+    donor_label = c("d1", "d2", "d3"),
+    donor_age = c("young", "middle", "old"),
+    diagnosis = c("control", "case", "case"),
+    stringsAsFactors = FALSE
+  )
+
+  disease <- data.frame(
+    donor_label = c("d1", "d2", "d3"),
+    diagnosis = c("none", "AD", "AD"),
+    pathology = c("low", "medium", "high"),
+    stringsAsFactors = FALSE
+  )
+
+  tables <- list(
+    library = library_table,
+    donor = donor,
+    disease = disease
+  )
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  # Refresh the modified cell table entry.
+  cell_entry <-
+    manifest$file_listing[["TEST-10X"]][["metadata"]][["cell_metadata"]][["files"]][["csv"]]
+
+  cell_entry$size <- file.size(cell_path)
+  cell_entry$file_hash <- unname(tools::md5sum(cell_path))
+
+  manifest$file_listing[["TEST-10X"]][["metadata"]][["cell_metadata"]][["files"]][["csv"]] <-
+    cell_entry
+
+  for (name in names(tables)) {
+    rel <- file.path(
+      "metadata",
+      "TEST-10X",
+      fx$version,
+      paste0(name, ".csv")
+    )
+
+    path <- file.path(fx$dir, rel)
+
+    utils::write.csv(
+      tables[[name]],
+      path,
+      row.names = FALSE,
+      na = ""
+    )
+
+    entry <- list(
+      version = fx$version,
+      relative_path = rel,
+      url = paste0("https://example.invalid/", rel),
+      size = file.size(path),
+      file_hash = unname(tools::md5sum(path))
+    )
+
+    manifest$file_listing[["TEST-10X"]][["metadata"]][[name]] <- list(
+      files = stats::setNames(
+        list(entry),
+        tools::file_ext(rel)
+      )
+    )
+  }
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  spec <- fixture_spec
+  spec$auto_joins <- TRUE
+
+  out <- suppressMessages(
+    .build_dataset(
+      spec,
+      cache,
+      "TEST_AUTO"
+    )
+  )
+
+  cm <- out$cell_metadata
+
+  expect_identical(
+    cm$region,
+    c("R1", "R1", "R2", "R2", "R3", "R3")
+  )
+
+  expect_identical(
+    cm$donor_age,
+    c("young", "young", "middle", "middle", "old", "old")
+  )
+
+  # Donor metadata arrives first and remains authoritative.
+  expect_identical(
+    cm$diagnosis,
+    c("control", "control", "case", "case", "case", "case")
+  )
+
+  # The overlapping disease value is preserved with provenance.
+  expect_identical(
+    cm$diagnosis__disease,
+    c("none", "none", "AD", "AD", "AD", "AD")
+  )
+
+  expect_identical(
+    cm$pathology,
+    c("low", "low", "medium", "medium", "high", "high")
+  )
+
+  expect_equal(nrow(cm), 6L)
+})

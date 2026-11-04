@@ -255,6 +255,68 @@
     )
   ),
 
+  SEAAD_Multiregion = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "SEA-AD-Multiregion-10X",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "SEA-AD-Multiregion-10X",
+      col_classes = c(cell_label = "character")
+    ),
+    auto_joins = TRUE,
+    taxonomy = "SEA-AD-Multiregion-taxonomy",
+    gene = list(dir = "SEA-AD-Multiregion-10X"),
+    cols_of_interest = c(
+      "feature_matrix_label",
+      "region_of_interest_label",
+      "region_of_interest_name",
+      "Brain Region",
+      "species_scientific_name",
+      "species_genus",
+      "donor_sex",
+      "donor_age",
+      "donor_race",
+      "Overall AD neuropathological Change",
+      "Braak",
+      "CERAD score",
+      "Cognitive Status",
+      "APOE Genotype"
+    )
+  ),
+
+  SEAAD_CaH = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "SEA-AD-CaH-10X",
+    modality = "single_nucleus_transcriptomics",
+    spatial = FALSE,
+    cell = list(
+      dir = "SEA-AD-CaH-10X",
+      col_classes = c(cell_label = "character")
+    ),
+    auto_joins = TRUE,
+    taxonomy = "SEA-AD-CaH-taxonomy",
+    gene = list(dir = "SEA-AD-CaH-10X"),
+    cols_of_interest = c(
+      "feature_matrix_label",
+      "region_of_interest_label",
+      "region_of_interest_name",
+      "Brain Region",
+      "species_scientific_name",
+      "species_genus",
+      "donor_sex",
+      "donor_age",
+      "donor_race",
+      "Overall AD neuropathological Change",
+      "Braak",
+      "CERAD score",
+      "Cognitive Status",
+      "APOE Genotype"
+    )
+  ),
+
   PMDBS = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
@@ -529,6 +591,42 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
       subset_spec$key,
       subset_spec$file
     )
+  }
+
+  # Some datasets publish standard metadata tables separately from the cell
+  # table. Join those automatically when requested by the route, matching the
+  # reference backend while keeping this complexity out of the user API.
+  if (isTRUE(spec$auto_joins)) {
+    standard_joins <- list(
+      list(file = "library", key = "library_label"),
+      list(file = "sample", key = "sample_label"),
+      list(file = "donor", key = "donor_label"),
+      list(file = "disease", key = "donor_label"),
+      list(file = "specimen_metadata", key = "brain_section_label")
+    )
+
+    for (j in standard_joins) {
+      if (
+        j$key %in% names(cell_extended) &&
+        .abc_metadata_exists(
+          abc_cache,
+          spec$cell$dir,
+          j$file
+        )
+      ) {
+        aux <- get_df(
+          spec$cell$dir,
+          j$file
+        )
+
+        cell_extended <- .abc_safe_join(
+          cell_extended,
+          aux,
+          j$key,
+          j$file
+        )
+      }
+    }
   }
 
   message(dataset, ": ", nrow(cell_extended), " cells")
