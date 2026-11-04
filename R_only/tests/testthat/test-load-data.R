@@ -1181,3 +1181,139 @@ test_that("Zhuang spatial routes declare native sources", {
     expect_null(spec$joins)
   }
 })
+
+test_that("HMBA spatial routes declare native spatial sources", {
+  expected <- c(
+    HMBA_spatial_Human = "HMBA-MERSCOPE-H22.30.001-BG",
+    HMBA_spatial_Macaque = "HMBA-MERSCOPE-QM23.50.001-BG",
+    HMBA_spatial_Marmoset = "HMBA-Xenium-CJ23.56.004-BG"
+  )
+
+  for (route in names(expected)) {
+    directory <- unname(expected[[route]])
+    spec <- .abc_datasets[[route]]
+
+    expect_identical(spec$cell$dir, directory)
+    expect_identical(spec$gene$dir, directory)
+    expect_identical(spec$expression_directories, directory)
+
+    expect_identical(
+      spec$taxonomy,
+      "HMBA-BG-taxonomy-CCN20250428"
+    )
+
+    expect_identical(spec$default_data_type, "raw")
+    expect_identical(
+      spec$available_data_types,
+      c("raw", "log2")
+    )
+    expect_identical(
+      spec$modality,
+      "spatial_transcriptomics"
+    )
+    expect_true(spec$spatial)
+  }
+})
+
+test_that("spatial routes automatically attach available spatial metadata", {
+  fx <- make_fixture_cache()
+
+  manifest_path <- file.path(
+    fx$dir,
+    "releases",
+    fx$version,
+    "manifest.json"
+  )
+
+  manifest <- jsonlite::read_json(
+    manifest_path,
+    simplifyVector = FALSE
+  )
+
+  tables <- list(
+    slab_plane_coordinates = data.frame(
+      cell_label = fx$cells$cell_label,
+      slab_plane_label = rep("plane1", nrow(fx$cells)),
+      x_slab_mm = seq_len(nrow(fx$cells)),
+      y_slab_mm = seq_len(nrow(fx$cells)) + 10,
+      stringsAsFactors = FALSE
+    ),
+    cell_anatomical_annotations = data.frame(
+      cell_label = fx$cells$cell_label,
+      parcellation_term_symbol = rep("STR", nrow(fx$cells)),
+      stringsAsFactors = FALSE
+    )
+  )
+
+  for (name in names(tables)) {
+    rel <- file.path(
+      "metadata",
+      "TEST-10X",
+      fx$version,
+      paste0(name, ".csv")
+    )
+
+    path <- file.path(fx$dir, rel)
+
+    utils::write.csv(
+      tables[[name]],
+      path,
+      row.names = FALSE,
+      na = ""
+    )
+
+    entry <- list(
+      version = fx$version,
+      relative_path = rel,
+      url = paste0("https://example.invalid/", rel),
+      size = file.size(path),
+      file_hash = unname(tools::md5sum(path))
+    )
+
+    manifest$file_listing[["TEST-10X"]][["metadata"]][[name]] <- list(
+      files = stats::setNames(
+        list(entry),
+        tools::file_ext(rel)
+      )
+    )
+  }
+
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE
+  )
+
+  cache <- abc_cache_connect(
+    fx$dir,
+    offline = TRUE,
+    release = fx$version
+  )
+
+  spec <- fixture_spec
+  spec$spatial <- TRUE
+
+  out <- suppressMessages(
+    .build_dataset(
+      spec,
+      cache,
+      "TEST_SPATIAL"
+    )
+  )
+
+  cm <- out$cell_metadata
+
+  expect_identical(
+    cm$slab_plane_label,
+    rep("plane1", nrow(fx$cells))
+  )
+  expect_identical(
+    cm$x_slab_mm,
+    as.integer(seq_len(nrow(fx$cells)))
+  )
+  expect_identical(
+    cm$parcellation_term_symbol,
+    rep("STR", nrow(fx$cells))
+  )
+  expect_equal(nrow(cm), nrow(fx$cells))
+})

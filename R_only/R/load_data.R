@@ -255,6 +255,89 @@
     )
   ),
 
+  HMBA_spatial_Human = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "HMBA-MERSCOPE-H22.30.001-BG",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "HMBA-MERSCOPE-H22.30.001-BG",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
+    gene = list(dir = "HMBA-MERSCOPE-H22.30.001-BG"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "x_experiment",
+      "y_experiment",
+      "x_slab_mm",
+      "y_slab_mm",
+      "parcellation_term_symbol",
+      "Neighborhood",
+      "Class",
+      "Subclass",
+      "Group",
+      "Cluster"
+    )
+  ),
+
+  HMBA_spatial_Macaque = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "HMBA-MERSCOPE-QM23.50.001-BG",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "HMBA-MERSCOPE-QM23.50.001-BG",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
+    gene = list(dir = "HMBA-MERSCOPE-QM23.50.001-BG"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "x_experiment",
+      "y_experiment",
+      "x_slab_mm",
+      "y_slab_mm",
+      "parcellation_term_symbol",
+      "Neighborhood",
+      "Class",
+      "Subclass",
+      "Group",
+      "Cluster"
+    )
+  ),
+
+  HMBA_spatial_Marmoset = list(
+    default_data_type = "raw",
+    available_data_types = c("raw", "log2"),
+    expression_directories = "HMBA-Xenium-CJ23.56.004-BG",
+    modality = "spatial_transcriptomics",
+    spatial = TRUE,
+    cell = list(
+      dir = "HMBA-Xenium-CJ23.56.004-BG",
+      col_classes = c(cell_label = "character")
+    ),
+    taxonomy = "HMBA-BG-taxonomy-CCN20250428",
+    gene = list(dir = "HMBA-Xenium-CJ23.56.004-BG"),
+    cols_of_interest = c(
+      "brain_section_label",
+      "x_experiment",
+      "y_experiment",
+      "x_rotated_um",
+      "y_rotated_um",
+      "x_slab_mm",
+      "y_slab_mm",
+      "parcellation_term_symbol",
+      "Neighborhood",
+      "Class",
+      "Subclass",
+      "Group",
+      "Cluster"
+    )
+  ),
+
   Zhuang1 = list(
     default_data_type = "raw",
     available_data_types = c("raw", "log2"),
@@ -864,6 +947,36 @@ load_data <- function(dataset, download_base = NULL, offline = FALSE,
         "taxonomy_color",
         column_suffix = "_color"
       )
+    }
+  }
+
+  # Spatial datasets may publish coordinate and anatomical annotations as
+  # separate cell-keyed tables. Attach them automatically when available,
+  # matching the reference backend while preserving every source cell.
+  if (isTRUE(spec$spatial)) {
+    spatial_files <- c(
+      "slab_plane_coordinates",
+      "cell_anatomical_annotations"
+    )
+
+    for (file in spatial_files) {
+      if (.abc_metadata_exists(
+        abc_cache,
+        spec$cell$dir,
+        file
+      )) {
+        spatial_metadata <- get_df(
+          spec$cell$dir,
+          file
+        )
+
+        cell_extended <- .abc_safe_join(
+          cell_extended,
+          spatial_metadata,
+          "cell_label",
+          file
+        )
+      }
     }
   }
 
