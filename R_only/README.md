@@ -1,164 +1,222 @@
 # importABCatlas
 
-`importABCatlas` is an R-native, release-aware interface to the
-[Allen Brain Cell (ABC) Atlas](https://portal.brain-map.org/atlases-and-data/bkp/abc-atlas).
+`importABCatlas` provides an R interface to the [Allen Brain Cell (ABC) Atlas](https://portal.brain-map.org/atlases-and-data/bkp/abc-atlas).
 
-It discovers supported dataset routes, loads and joins cell and gene metadata,
-selects exact or sampled cells, plans expression downloads before transfer, and
-reads selected H5AD expression directly in R.
+It lets you explore available datasets, select cells and genes, check how much data needs to be downloaded, and load expression data directly into R.
 
-No Python installation is required.
+**No Python installation is required.**
 
-## Discover datasets
+## Installation
 
-    library(importABCatlas)
-    list_datasets()
+Install the package from the `r-native-backend` branch:
 
-`list_datasets()` reports the curated routes supported by the package together
-with their modality, spatial and imputed status, and available expression
-representations. It performs no network access.
+```r
+install.packages("remotes")
 
-## Load metadata and select cells
+remotes::install_github(
+  "me37uday/importABCatlas",
+  ref = "r-native-backend",
+  subdir = "R_only"
+)
+```
 
-`load_data()` assembles cell and gene metadata. It does not download the large
-expression matrices.
+Then load it:
 
-    abc <- load_data(
-      "AgingMouse",
-      filters = list(
-        anatomical_division_label = "STR"
-      ),
-      n_cells = 500,
-      seed = 1
-    )
+```r
+library(importABCatlas)
+```
 
-The result is an `abc_data` object containing cell metadata, gene metadata,
-useful distinct metadata values, and dataset/cache/release provenance.
+## Quick start
 
-For an exact set of cells, use `cell_ids`. Requested order is preserved:
+The basic workflow is: choose a dataset, select cells, check the download, and fetch expression.
 
-    abc <- load_data(
-      "AgingMouse",
-      cell_ids = my_cell_labels
-    )
+### 1. See the available datasets
 
-## Plan before downloading expression
+```r
+list_datasets()
+```
 
-ABC Atlas expression files can be large. Inspect the request before transfer:
+This shows the supported datasets, including which are spatial and which expression types are available.
 
-    genes <- c("P2ry12", "Cx3cr1", "Tmem119")
+### 2. Choose cells
 
-    plan <- plan_fetch(
-      abc,
-      genes = genes
-    )
+```r
+abc <- load_data(
+  "AgingMouse",
+  filters = list(anatomical_division_label = "STR"),
+  n_cells = 500,
+  seed = 1
+)
+```
 
-    plan
+`load_data()` loads metadata and selects cells. It does **not** download the large expression matrices.
 
-`plan_fetch()` reports the selected representation, requested dimensions,
-expression files, cache state, resumable partial downloads and additional
-download required. It does not download expression matrices.
+For exact cells:
 
-## Fetch expression
+```r
+abc <- load_data(
+  "AgingMouse",
+  cell_ids = my_cell_labels
+)
+```
 
-Pass the `abc_data` object directly:
+### 3. Check the download
 
-    x <- fetch_data(
-      abc,
-      genes = genes,
-      return_type = "matrix"
-    )
+```r
+genes <- c("P2ry12", "Cx3cr1", "Tmem119")
 
-Four output representations are supported:
+plan_fetch(
+  abc,
+  genes = genes
+)
+```
 
-    x_matrix <- fetch_data(abc, genes = genes, return_type = "matrix")
-    x_seurat <- fetch_data(abc, genes = genes, return_type = "seurat")
-    x_sce <- fetch_data(abc, genes = genes, return_type = "sce")
-    x_spatial <- fetch_data(spatial_abc, genes = genes, return_type = "spatial")
+`plan_fetch()` shows which expression files are needed, their sizes, whether they are already cached, and how much additional data must be downloaded. It does **not** start the download.
 
-`return_type = "matrix"` returns an `abc_matrix` bundle containing sparse
-expression, selected cell metadata, selected gene metadata, representation and
-provenance.
+### 4. Fetch expression
 
-Seurat, SingleCellExperiment and SpatialExperiment outputs require their
-corresponding optional packages.
+```r
+x <- fetch_data(
+  abc,
+  genes = genes,
+  return_type = "matrix"
+)
+```
 
-## Expression semantics
+Required expression files are downloaded if necessary and reused from the local cache on future requests.
 
-Dataset routes declare the representations actually published upstream.
+## Choosing an output format
 
-- `data_type = "raw"` retains count semantics.
-- `data_type = "log2"` remains upstream transformed expression and is never
-  presented as counts.
-- `MERFISH_imputed` represents upstream published imputed spatial expression.
-  `importABCatlas` does not perform the imputation.
+### Sparse matrix
 
-Use `list_datasets()` to inspect each route's default and available
-representations.
+```r
+x <- fetch_data(abc, genes = genes, return_type = "matrix")
+```
 
-## Gene identity
+This is the simplest option and does not require an additional analysis framework.
 
-Expression rows use canonical `gene_identifier` values. `gene_symbol` remains
-available as annotation and for gene lookup.
+### Seurat
 
-Gene symbols can be supplied to `genes` when they resolve uniquely. If a symbol
-is ambiguous, the package asks for a canonical identifier rather than silently
-choosing one.
+```r
+x <- fetch_data(abc, genes = genes, return_type = "seurat")
+```
 
-## Spatial data
+Requires `SeuratObject`.
 
-Spatial routes are identified by `list_datasets()`.
+### SingleCellExperiment
 
-For `return_type = "spatial"`, verified spatial coordinates are carried into a
-SpatialExperiment. Automatic coordinate selection is restricted to routes
-declared spatial. Otherwise, verified `coordinate_columns` must be supplied
-explicitly.
+```r
+x <- fetch_data(abc, genes = genes, return_type = "sce")
+```
 
-This prevents dimensionality-reduction coordinates from being mistaken for
-physical spatial positions.
+Requires `SingleCellExperiment`.
 
-## Cache and releases
+### SpatialExperiment
 
-    options(importABCatlas.download_base = "/data/abc_atlas")
-    abc_download_dir()
+```r
+spatial <- load_data(
+  "Zhuang4",
+  n_cells = 500,
+  seed = 1
+)
 
-Cache resolution order is:
+x <- fetch_data(
+  spatial,
+  genes = genes,
+  return_type = "spatial"
+)
+```
 
-1. explicit `download_base`;
-2. `options(importABCatlas.download_base = ...)`;
-3. `ABC_ATLAS_CACHE`;
-4. the package's per-user cache directory.
+Requires `SpatialExperiment`. Spatial coordinates provided by the dataset are included in the returned object.
 
-Downloads are cached and resumable.
+## Raw and transformed expression
 
-A release can be pinned explicitly for reproducibility:
+Use `list_datasets()` to see which representations are available.
 
-    abc <- load_data(
-      "AgingMouse",
-      release = "20260711"
-    )
+- `"raw"` — raw expression with count semantics.
+- `"log2"` — expression transformed upstream by the data provider.
 
-After required files are cached, `offline = TRUE` prohibits network access.
+If `data_type` is not specified, the package uses the dataset's default representation.
 
-## Direct cache access
+```r
+x <- fetch_data(
+  abc,
+  genes = genes,
+  data_type = "raw",
+  return_type = "matrix"
+)
+```
 
-`abc_cache_connect()` provides lower-level access to files and metadata in the
-release manifest:
+The package preserves the representation supplied by the ABC Atlas and does not silently convert transformed expression into counts.
 
-    cache <- abc_cache_connect()
+Some representations may contain expression for only a subset of the genes in the broader dataset metadata. If a requested gene is not available in that expression matrix, `fetch_data()` reports it rather than silently dropping it.
 
-    donors <- cache$get_metadata_dataframe(
-      directory = "Zeng-Aging-Mouse-10Xv3",
-      file_name = "donor"
-    )
+## Downloads and local cache
 
-## Development
+Downloaded files are cached so they do not need to be downloaded again.
 
-The native package currently lives in `R_only/` in this repository.
+Set the cache location with:
 
-    devtools::load_all("R_only")
-    devtools::test("R_only")
+```r
+options(importABCatlas.download_base = "/path/to/abc_atlas")
+```
 
-For a complete walkthrough:
+Check the active location:
 
-    vignette("importABCatlas", package = "importABCatlas")
+```r
+abc_download_dir()
+```
+
+If required files are already cached, network access can be disabled:
+
+```r
+abc <- load_data("AgingMouse", offline = TRUE)
+
+x <- fetch_data(
+  abc,
+  genes = genes,
+  offline = TRUE
+)
+```
+
+## Complete example
+
+```r
+library(importABCatlas)
+
+list_datasets()
+
+abc <- load_data(
+  "AgingMouse",
+  filters = list(anatomical_division_label = "STR"),
+  n_cells = 500,
+  seed = 1
+)
+
+genes <- c("P2ry12", "Cx3cr1", "Tmem119")
+
+plan_fetch(abc, genes = genes)
+
+x <- fetch_data(
+  abc,
+  genes = genes,
+  return_type = "matrix"
+)
+
+x
+```
+
+## Getting help
+
+```r
+?list_datasets
+?load_data
+?plan_fetch
+?fetch_data
+```
+
+For a more detailed walkthrough:
+
+```r
+vignette("importABCatlas", package = "importABCatlas")
+```
