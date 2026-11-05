@@ -11,13 +11,24 @@ It lets you explore available datasets, select cells and genes, check how much d
 Install the package from the `r-native` branch:
 
 ```r
+install.packages("BiocManager")
+
+BiocManager::install(
+  c("rhdf5", "HDF5Array"),
+  ask = FALSE,
+  update = FALSE
+)
+
 install.packages("remotes")
 
 remotes::install_github(
   "me37uday/importABCatlas",
-  ref = "r-native"
+  ref = "r-native",
+  upgrade = "never"
 )
 ```
+
+`rhdf5` and `HDF5Array` are Bioconductor packages used to read ABC Atlas H5AD expression files directly in R. Installing them explicitly ensures that a fresh R installation can resolve these dependencies correctly. No Python installation is required.
 
 Then load it:
 
