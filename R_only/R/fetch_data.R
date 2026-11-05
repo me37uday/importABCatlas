@@ -1323,6 +1323,17 @@ print.abc_fetch_plan <- function(x, ...) {
   )
 }
 
+# Normalize accession-qualified NCBI feature identifiers used by some ABC
+# Atlas H5AD files. The original H5AD identifier remains the physical matrix
+# key; this normalized value is used only for identity matching.
+.abc_h5ad_source_gene_identifier <- function(x) {
+  sub(
+    "^(NCBIGene:[^:]+):(?:NC|NW)_[^:]+$",
+    "\\1",
+    as.character(x)
+  )
+}
+
 # Positions in an expression file's var index for selected gene metadata rows.
 # Canonical gene_identifier is preferred. For normalized duplicate source IDs,
 # occurrence metadata permits one-to-one alignment only when the H5AD contains
@@ -1356,6 +1367,11 @@ print.abc_fetch_plan <- function(x, ...) {
   )
 
   if (has_source) {
+    # Keep the original H5AD feature identifiers for physical matrix indexing,
+    # but compare source identity after removing an optional terminal genomic
+    # accession used by accession-qualified NCBI features.
+    var_source <- .abc_h5ad_source_gene_identifier(var)
+
     for (j in unresolved) {
       row <- sel[[j]]
 
@@ -1380,7 +1396,14 @@ print.abc_fetch_plan <- function(x, ...) {
         next
       }
 
+      # Prefer the published identifier exactly. If the H5AD qualifies an NCBI
+      # identifier with an NC_/NW_ genomic accession, match its normalized
+      # source identity instead.
       hits <- which(var == source)
+
+      if (!length(hits)) {
+        hits <- which(var_source == source)
+      }
 
       if (length(hits) == 1L && group_size == 1L) {
         pos[[j]] <- hits[[1L]]

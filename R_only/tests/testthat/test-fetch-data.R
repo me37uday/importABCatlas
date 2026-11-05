@@ -2126,3 +2126,120 @@ test_that("H5AD expression reader rejects inconsistent dimensions", {
     fixed = TRUE
   )
 })
+
+test_that("accession-qualified NCBI H5AD identifiers normalize safely", {
+  input <- c(
+    "NCBIGene:114678393:NC_041754.1",
+    "NCBIGene:114675313:NW_021160097.1",
+    "NCBIGene:710010",
+    "ENSMUSG00000000001",
+    "NCBIGene:12345:OTHER_123.1"
+  )
+
+  expect_identical(
+    .abc_h5ad_source_gene_identifier(input),
+    c(
+      "NCBIGene:114678393",
+      "NCBIGene:114675313",
+      "NCBIGene:710010",
+      "ENSMUSG00000000001",
+      "NCBIGene:12345:OTHER_123.1"
+    )
+  )
+})
+
+
+test_that("gene positions resolve accession-qualified NCBI features", {
+  gene_data <- data.frame(
+    gene_identifier = c(
+      "NCBIGene:114678393",
+      "NCBIGene:114675313"
+    ),
+    source_gene_identifier = c(
+      "NCBIGene:114678393",
+      "NCBIGene:114675313"
+    ),
+    source_gene_occurrence = c(1L, 1L),
+    source_gene_group_size = c(1L, 1L),
+    stringsAsFactors = FALSE
+  )
+
+  var <- c(
+    "NCBIGene:114675313:NW_021160097.1",
+    "NCBIGene:114678393:NC_041754.1"
+  )
+
+  expect_identical(
+    .abc_gene_positions(
+      gene_data,
+      sel = c(1L, 2L),
+      var = var,
+      file = "TEST-MACAQUE.h5ad"
+    ),
+    c(2L, 1L)
+  )
+})
+
+
+test_that("accession-qualified duplicate genes retain occurrence identity", {
+  gene_data <- data.frame(
+    gene_identifier = c(
+      "NCBIGene:693935.iabdup1",
+      "NCBIGene:693935.iabdup2"
+    ),
+    source_gene_identifier = c(
+      "NCBIGene:693935",
+      "NCBIGene:693935"
+    ),
+    source_gene_occurrence = c(1L, 2L),
+    source_gene_group_size = c(2L, 2L),
+    stringsAsFactors = FALSE
+  )
+
+  var <- c(
+    "NCBIGene:693935:NC_041754.1",
+    "NCBIGene:693935:NC_041754.1"
+  )
+
+  expect_identical(
+    .abc_gene_positions(
+      gene_data,
+      sel = c(2L, 1L),
+      var = var,
+      file = "TEST-MACAQUE-DUPLICATE.h5ad"
+    ),
+    c(2L, 1L)
+  )
+})
+
+
+test_that("unrecognized H5AD identifier suffixes are not stripped", {
+  gene_data <- data.frame(
+    gene_identifier = "NCBIGene:12345",
+    source_gene_identifier = "NCBIGene:12345",
+    source_gene_occurrence = 1L,
+    source_gene_group_size = 1L,
+    stringsAsFactors = FALSE
+  )
+
+  var <- c(
+    "NCBIGene:12345:OTHER_123.1",
+    "NCBIGene:99999"
+  )
+
+  expect_identical(
+    .abc_h5ad_source_gene_identifier(var),
+    var
+  )
+
+  expect_error(
+    .abc_gene_positions(
+      gene_data,
+      sel = 1L,
+      var = var,
+      file = "TEST-UNRECOGNIZED.h5ad"
+    ),
+    "missing from TEST-UNRECOGNIZED.h5ad",
+    fixed = TRUE
+  )
+})
