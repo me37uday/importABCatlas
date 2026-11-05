@@ -15,7 +15,7 @@ install.packages("remotes")
 
 remotes::install_github(
   "me37uday/importABCatlas",
-  ref = "r-native-backend"
+  ref = "r-native"
 )
 ```
 
