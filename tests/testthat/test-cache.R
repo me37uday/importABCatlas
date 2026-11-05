@@ -22,7 +22,13 @@ test_that("file attributes resolve plain names and name/kind", {
   a <- .abc_file_attributes(cache, "TEST-10X", "gene")
   expect_equal(a$relative_path, "metadata/TEST-10X/20250101/gene.csv")
   expect_equal(a$file_type, "csv")
-  expect_equal(a$local_path, file.path(fx$dir, a$relative_path))
+  expect_equal(
+    normalizePath(a$local_path, mustWork = TRUE),
+    normalizePath(
+      file.path(fx$dir, a$relative_path),
+      mustWork = TRUE
+    )
+  )
 
   b <- .abc_file_attributes(cache, "TEST-10X", "TEST-A/raw")
   expect_equal(b$file_type, "h5ad")
