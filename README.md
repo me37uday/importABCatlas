@@ -8,7 +8,7 @@ It lets you explore available datasets, select cells and genes, check how much d
 
 ## Installation
 
-Install the package from the `r-native-backend` branch:
+Install the package from the `r-native` branch:
 
 ```r
 install.packages("remotes")
