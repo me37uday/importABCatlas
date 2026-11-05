@@ -4,7 +4,16 @@
 \alias{load_data}
 \title{Load assembled cell metadata for an ABC Atlas dataset}
 \usage{
-load_data(dataset, download_base = NULL, offline = FALSE)
+load_data(
+  dataset,
+  download_base = NULL,
+  offline = FALSE,
+  release = .abc_default_release,
+  filters = list(),
+  cell_ids = NULL,
+  n_cells = NULL,
+  seed = 1L
+)
 }
 \arguments{
 \item{dataset}{Dataset name. One of \code{"WHB"}, \code{"WMB"},
@@ -16,11 +25,24 @@ If \code{NULL} (default), it is resolved by \code{\link{abc_download_dir}}.}
 
 \item{offline}{If \code{TRUE}, use only locally cached data and never contact
 S3 (see \code{\link{abc_cache_connect}}).}
+
+\item{release}{Optional ABC Atlas release version in \code{YYYYMMDD} form.
+When supplied, metadata are loaded from exactly that release.}
+
+\item{filters}{Named list of metadata column = allowed values. Filters are
+applied before exact cell selection and sampling.}
+
+\item{cell_ids}{Optional character vector of exact cell labels. Requested
+order is preserved and missing cells are an error.}
+
+\item{n_cells}{Optional number of cells to sample after filters and
+\code{cell_ids} selection.}
+
+\item{seed}{Random seed used when \code{n_cells} samples the selected cells.}
 }
 \value{
-A list with \code{cell_metadata}, \code{gene_data}, and
-\code{unique_values} (the unique entries of each column of interest, used to
-build filters for \code{\link{fetch_data}}).
+An \code{abc_data} object containing \code{cell_metadata},
+\code{gene_data}, \code{unique_values}, and dataset/cache provenance.
 }
 \description{
 Single entry point for every supported dataset. The dataset is selected by

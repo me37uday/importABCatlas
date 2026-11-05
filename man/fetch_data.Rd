@@ -2,39 +2,68 @@
 % Please edit documentation in R/fetch_data.R
 \name{fetch_data}
 \alias{fetch_data}
-\title{Fetch data from ABC Atlas based on filters and return a Seurat object}
+\title{Fetch selected ABC Atlas expression into an R analysis representation}
 \usage{
 fetch_data(
-  download_base = NULL,
-  metadata,
+  data = NULL,
+  metadata = NULL,
   filters = list(),
-  gene_data,
+  gene_data = NULL,
   genes = NULL,
   assay_name = "RNA",
-  offline = FALSE
+  return_type = c("seurat", "sce", "matrix", "spatial"),
+  coordinate_columns = NULL,
+  data_type = NULL,
+  offline = FALSE,
+  release = NULL,
+  download_base = NULL
 )
 }
 \arguments{
-\item{download_base}{Directory where ABC Atlas data is downloaded and cached.
-If \code{NULL} (default), it is resolved by \code{\link[=abc_download_dir]{abc_download_dir()}} (option,
-\code{ABC_ATLAS_CACHE} env var, or a per-user cache directory).}
+\item{data}{Optional \code{abc_data} object returned by \code{load_data()}.
+This is the preferred interface. When supplied, its metadata, gene data,
+cache directory, and release are reused automatically.}
 
-\item{metadata}{A data.frame containing ABC atlas cell metadata (e.g., from \code{get_cell_metadata()}).}
+\item{metadata}{A data.frame containing ABC atlas cell metadata (e.g., the
+\code{cell_metadata} element returned by \code{\link[=load_data]{load_data()}}).}
 
 \item{filters}{A named list of column = value pairs used to filter the metadata.}
 
-\item{gene_data}{A data.frame with a 'gene_symbol' column, typically from \code{load_data()}.}
+\item{gene_data}{A data.frame with 'gene_identifier' and 'gene_symbol'
+columns, typically the \code{gene_data} element returned by \code{\link[=load_data]{load_data()}}.}
 
 \item{genes}{A character vector of gene names to include. If NULL, all genes in gene_data$gene_symbol will be used.}
 
-\item{assay_name}{The name to use for the Seurat assay (default: "RNA").}
+\item{assay_name}{Assay name used for Seurat output (default: "RNA").}
+
+\item{return_type}{Output format: \code{"matrix"} for a sparse expression
+bundle, \code{"seurat"} for a Seurat object, \code{"sce"} for a
+SingleCellExperiment, or \code{"spatial"} for a SpatialExperiment.
+Optional object formats require their corresponding packages.}
+
+\item{coordinate_columns}{Optional length-two character vector naming the
+spatial x/y columns. Used only for \code{return_type = "spatial"}.}
+
+\item{data_type}{Published expression representation (\code{"raw"} or \code{"log2"}).
+If \code{NULL}, the dataset route's declared default is used. Raw expression
+retains count semantics. Upstream log2 expression remains transformed
+data and is never presented as counts.}
 
 \item{offline}{If \code{TRUE}, use only locally cached expression data and never
 contact S3 (see \code{\link[=abc_cache_connect]{abc_cache_connect()}}).}
+
+\item{release}{Optional ABC Atlas release version in \code{YYYYMMDD} form.
+Defaults to the release validated against this package. Advanced users may
+supply another release explicitly.}
+
+\item{download_base}{Directory where ABC Atlas data is downloaded and cached.
+If \code{NULL} (default), it is resolved by \code{\link[=abc_download_dir]{abc_download_dir()}} (option,
+\code{ABC_ATLAS_CACHE} env var, or a per-user cache directory).}
 }
 \value{
-A Seurat object containing the filtered cells and gene expression data.
+The requested expression representation: a sparse matrix bundle,
+Seurat object, SingleCellExperiment, or SpatialExperiment.
 }
 \description{
-Fetch data from ABC Atlas based on filters and return a Seurat object
+Fetch selected ABC Atlas expression into an R analysis representation
 }

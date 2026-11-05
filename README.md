@@ -1,123 +1,221 @@
 # importABCatlas
 
-## 🧠 About the Tool
+`importABCatlas` provides an R interface to the [Allen Brain Cell (ABC) Atlas](https://portal.brain-map.org/atlases-and-data/bkp/abc-atlas).
 
-**`importABCatlas`** provides a streamlined interface for accessing and analyzing data from the **Allen Brain Cell (ABC) Atlas** using the **Seurat** ecosystem. Built with accessibility and ease-of-use in mind, this package is intended to empower researchers—particularly those more comfortable in R environments—to explore high-resolution single-cell data from the ABC Atlas without needing Python or high-performance computing (HPC) infrastructure.
+It lets you explore available datasets, select cells and genes, check how much data needs to be downloaded, and load expression data directly into R.
 
-The **Allen Brain Cell Atlas** is an open-access, multimodal platform developed by the **Allen Institute** as part of the Brain Knowledge Platform. Its mission is to provide a unified, high-resolution view of the molecular and spatial diversity of brain cell types across mammalian species. This groundbreaking initiative continues to expand, offering researchers unprecedented capabilities to:
+**No Python installation is required.**
 
-- 🔬 Identify more cell types in the brain  
-- 🧭 Investigate spatial organization of these cell types  
-- 🧬 Explore gene expression and co-expression patterns  
-- 🧠 Refine the molecular definitions of brain regions
+## Installation
 
-Despite the wealth of data available in the ABC Atlas, programmatic access is currently supported primarily via **Python APIs**. However, nearly half of the neuroscience community—including many wet lab scientists—prefer **R** for downstream single-cell transcriptomic analyses. This creates a gap in accessibility and ease-of-use.
+Install the package from the `r-native-backend` branch:
 
-**`importABCatlas`** aims to bridge that gap by:
+```r
+install.packages("remotes")
 
-- Providing seamless access to ABC Atlas data **entirely in R**
-- Leveraging the **Seurat** framework for downstream analysis
-- Supporting flexible subsetting and filtering of metadata
-- Enabling usage on **non-HPC machines**, making it viable for most labs worldwide
-- Offering compatibility with other popular R-based frameworks like **SingleCellExperiment** and **monocle3** by allowing users to extract data from Seurat objects
-
-Whether you're investigating a small cell population in a low-resource environment or exploring atlas-wide transcriptomic patterns, `importABCatlas` is designed to provide a simple, robust, and R-native workflow.
-
----
-
-## 🚧 Current Status
-
-This package is currently **under active development**. Several core functions are already implemented, including support for:
-
-- ✅ Setting up the environment and loading ABC Atlas metadata  
-- ✅ Filtering metadata based on user-specified criteria  
-- ✅ Downloading and formatting gene expression data into **Seurat** objects  
-
----
-
-## 🚀 Usage Instructions
-
-You can extract gene expression data from the **Allen Brain Cell Atlas** adult human brain dataset (WHB) in just a few steps:
-
----
-
-### 🔧 Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/me37uday/importABCatlas.git
-```
-
-### 🧬 Step 2: Load the Package in R
-
-```
-# Set the base download path in the github repo where the raw data will be stored
-setwd("/path/to/importABCatlas/")
-download_base <- "abc_download_root"
-
-# Load required library (if not already installed: install.packages("devtools"))
-library(devtools)
-
-# Load the package from your local clone
-devtools::load_all()
-```
-Replace "/path/to/importABCatlas/" with the actual path to your cloned repository.
-
-### 📥 Step 3: Load Metadata
-
-A single `load_data()` function serves every dataset; pick one by name:
-
-```
-WHB_metadata <- load_data("WHB")
-```
-This returns a list with the following:
-
-- WHB_metadata$cell_metadata: metadata for all WHB cells
-- WHB_metadata$gene_data: reference gene annotation
-- WHB_metadata$unique_values: helper list showing column names and unique values (used for filtering)
-
-Supported `dataset` values: `"WHB"`, `"WMB"`, `"AgingMouse"`, `"HMBA"`, `"PMDBS"`.
-
-### 🧪 Step 4: Define Filtering Criteria
-Create a named vector to specify the cell populations of interest. Example:
-```
-filters <- c(
-  feature_matrix_label = "WHB-10Xv3-Nonneurons",
-  cluster = "VendV_17"
+remotes::install_github(
+  "me37uday/importABCatlas",
+  ref = "r-native-backend"
 )
 ```
-You can explore valid column names and their possible values using:
+
+Then load it:
+
+```r
+library(importABCatlas)
 ```
-WHB_metadata$unique_values
+
+## Quick start
+
+The basic workflow is: choose a dataset, select cells, check the download, and fetch expression.
+
+### 1. See the available datasets
+
+```r
+list_datasets()
 ```
-### 🧱 Step 5: Extract Seurat Object
-```
-obj <- fetch_data(
-  metadata  = WHB_metadata$cell_metadata,
-  filters   = filters,
-  gene_data = WHB_metadata$gene_data,
-  genes     = WHB_metadata$gene_data$gene_symbol
+
+This shows the supported datasets, including which are spatial and which expression types are available.
+
+### 2. Choose cells
+
+```r
+abc <- load_data(
+  "AgingMouse",
+  filters = list(anatomical_division_label = "STR"),
+  n_cells = 500,
+  seed = 1
 )
 ```
-This returns a Seurat object containing the filtered cell population.
 
-### 📤 Export for Other Frameworks (Optional)
-To use the data in other single-cell analysis frameworks like SingleCellExperiment, monocle3, etc., you can extract the raw counts and metadata:
+`load_data()` loads metadata and selects cells. It does **not** download the large expression matrices.
+
+For exact cells:
+
+```r
+abc <- load_data(
+  "AgingMouse",
+  cell_ids = my_cell_labels
+)
 ```
-counts <- obj@assays$RNA@counts
-meta   <- obj[[]]
+
+### 3. Check the download
+
+```r
+genes <- c("P2ry12", "Cx3cr1", "Tmem119")
+
+plan_fetch(
+  abc,
+  genes = genes
+)
 ```
 
-### 🧱 Current Dataset Support
-Select any of the following via `load_data("<dataset>")`:
+`plan_fetch()` shows which expression files are needed, their sizes, whether they are already cached, and how much additional data must be downloaded. It does **not** start the download.
 
-- 🧠 Whole Human Brain — `"WHB"`
-- 🧠 Whole Mouse Brain — `"WMB"`
-- ⏳ Aging Mouse Brain — `"AgingMouse"`
-- 🔬 Human-Mammalian Brain Atlas — `"HMBA"`
-- 🧬 Human Postmortem-Derived Brain Sequencing — `"PMDBS"`
+### 4. Fetch expression
 
-All required raw files will be downloaded to the location defined by download_base.
+```r
+x <- fetch_data(
+  abc,
+  genes = genes,
+  return_type = "matrix"
+)
+```
 
-⚙️ System requirements and package dependencies are currently being tested. Detailed installation and configuration instructions will be available in the final documentation.
+Required expression files are downloaded if necessary and reused from the local cache on future requests.
 
-Thank you for your patience and support as the package evolves.
+## Choosing an output format
+
+### Sparse matrix
+
+```r
+x <- fetch_data(abc, genes = genes, return_type = "matrix")
+```
+
+This is the simplest option and does not require an additional analysis framework.
+
+### Seurat
+
+```r
+x <- fetch_data(abc, genes = genes, return_type = "seurat")
+```
+
+Requires `SeuratObject`.
+
+### SingleCellExperiment
+
+```r
+x <- fetch_data(abc, genes = genes, return_type = "sce")
+```
+
+Requires `SingleCellExperiment`.
+
+### SpatialExperiment
+
+```r
+spatial <- load_data(
+  "Zhuang4",
+  n_cells = 500,
+  seed = 1
+)
+
+x <- fetch_data(
+  spatial,
+  genes = genes,
+  return_type = "spatial"
+)
+```
+
+Requires `SpatialExperiment`. Spatial coordinates provided by the dataset are included in the returned object.
+
+## Raw and transformed expression
+
+Use `list_datasets()` to see which representations are available.
+
+- `"raw"` — raw expression with count semantics.
+- `"log2"` — expression transformed upstream by the data provider.
+
+If `data_type` is not specified, the package uses the dataset's default representation.
+
+```r
+x <- fetch_data(
+  abc,
+  genes = genes,
+  data_type = "raw",
+  return_type = "matrix"
+)
+```
+
+The package preserves the representation supplied by the ABC Atlas and does not silently convert transformed expression into counts.
+
+Some representations may contain expression for only a subset of the genes in the broader dataset metadata. If a requested gene is not available in that expression matrix, `fetch_data()` reports it rather than silently dropping it.
+
+## Downloads and local cache
+
+Downloaded files are cached so they do not need to be downloaded again.
+
+Set the cache location with:
+
+```r
+options(importABCatlas.download_base = "/path/to/abc_atlas")
+```
+
+Check the active location:
+
+```r
+abc_download_dir()
+```
+
+If required files are already cached, network access can be disabled:
+
+```r
+abc <- load_data("AgingMouse", offline = TRUE)
+
+x <- fetch_data(
+  abc,
+  genes = genes,
+  offline = TRUE
+)
+```
+
+## Complete example
+
+```r
+library(importABCatlas)
+
+list_datasets()
+
+abc <- load_data(
+  "AgingMouse",
+  filters = list(anatomical_division_label = "STR"),
+  n_cells = 500,
+  seed = 1
+)
+
+genes <- c("P2ry12", "Cx3cr1", "Tmem119")
+
+plan_fetch(abc, genes = genes)
+
+x <- fetch_data(
+  abc,
+  genes = genes,
+  return_type = "matrix"
+)
+
+x
+```
+
+## Getting help
+
+```r
+?list_datasets
+?load_data
+?plan_fetch
+?fetch_data
+```
+
+For a more detailed walkthrough:
+
+```r
+vignette("importABCatlas", package = "importABCatlas")
+```

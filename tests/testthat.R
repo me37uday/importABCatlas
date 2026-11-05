@@ -9,4 +9,9 @@
 library(testthat)
 library(importABCatlas)
 
-test_check("importABCatlas")
+# Keep the normal progress report while suppressing testthat's randomized
+# celebratory praise, which is unrelated to test results and may contain emoji.
+test_check(
+  "importABCatlas",
+  reporter = ProgressReporter$new(show_praise = FALSE)
+)
